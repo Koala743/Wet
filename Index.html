@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Visor de Imágenes</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0f0f0f;
+            color: #e0e0e0;
+            height: 100vh;
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            grid-template-rows: auto 1fr auto;
+        }
+
+        @media (max-width: 968px) {
+            body {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 300px 1fr auto;
+            }
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            grid-column: 1 / -1;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            color: white;
+        }
+
+        .chat-container {
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            background: #1a1a1a;
+            border-right: 1px solid #333;
+        }
+
+        .gallery-container {
+            overflow-y: auto;
+            padding: 20px;
+            background: #0f0f0f;
+        }
+
+        @media (max-width: 968px) {
+            .chat-container {
+                border-right: none;
+                border-bottom: 1px solid #333;
+            }
+        }
+
+        .message {
+            display: flex;
+            gap: 10px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            word-wrap: break-word;
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.system .message-content {
+            background: #252525;
+            border: 1px solid #333;
+            border-bottom-left-radius: 4px;
+            color: #b0b0b0;
+        }
+
+        .sequence-detector {
+            background: #252525;
+            padding: 15px;
+            border-radius: 12px;
+            border: 2px solid #667eea;
+        }
+
+        .sequence-info {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .sequence-info span {
+            background: #333;
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .range-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
+        .range-controls input {
+            background: #333;
+            border: 1px solid #555;
+            color: #e0e0e0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            width: 80px;
+            text-align: center;
+        }
+
+        .range-controls button {
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            padding: 0;
+        }
+
+        .image-container {
+            position: relative;
+            aspect-ratio: 1;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #2a2a2a;
+            cursor: pointer;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .image-container:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 16px rgba(102, 126, 234, 0.4);
+        }
+
+        .image-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+        }
+
+        .image-number {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .image-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            color: #666;
+        }
+
+        .image-error {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            color: #f44336;
+            font-size: 12px;
+            text-align: center;
+            padding: 10px;
+        }
+
+        .input-container {
+            padding: 20px;
+            background: #1a1a1a;
+            border-top: 1px solid #333;
+            display: flex;
+            gap: 10px;
+            grid-column: 1 / -1;
+        }
+
+        .input-box {
+            flex: 1;
+            display: flex;
+            gap: 10px;
+            background: #2a2a2a;
+            border-radius: 24px;
+            padding: 8px 16px;
+            border: 2px solid #333;
+            transition: border-color 0.3s;
+        }
+
+        .input-box:focus-within {
+            border-color: #667eea;
+        }
+
+        #urlInput {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #e0e0e0;
+            font-size: 15px;
+            outline: none;
+        }
+
+        #urlInput::placeholder {
+            color: #666;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 24px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .download-btn {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            margin-top: 15px;
+            width: 100%;
+            padding: 15px;
+            font-size: 16px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.95);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal img {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain;
+            border-radius: 8px;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            font-size: 24px;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+        }
+
+        .stats {
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 10px;
+            padding: 10px;
+            background: #252525;
+            border-radius: 8px;
+        }
+
+        .progress-container {
+            background: #252525;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #333;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            font-size: 13px;
+            color: #aaa;
+            margin-top: 5px;
+        }
+
+        .gallery-header {
+            margin-bottom: 20px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🖼️ Chat Visor de Imágenes Secuenciales</h1>
+    </div>
+
+    <div class="chat-container" id="chatContainer"></div>
+
+    <div class="gallery-container" id="galleryContainer">
+        <div class="gallery-header">
+            <h2 style="color: #888; text-align: center;">📸 Galería de Imágenes</h2>
+        </div>
+    </div>
+
+    <div class="input-container">
+        <div class="input-box">
+            <input type="text" id="urlInput" placeholder="URL de imagen o secuencia. Usa {N} para marcar número (ej: /imagen_{N}.jpg)..." />
+        </div>
+        <button onclick="processUrls()">Enviar</button>
+    </div>
+
+    <div class="modal" id="modal" onclick="closeModal()">
+        <button class="modal-close" onclick="closeModal()">×</button>
+        <img id="modalImg" src="" alt="">
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script>
+        function detectManualPattern(url) {
+            if (url.includes('{N}')) {
+                return {
+                    found: true,
+                    manual: true,
+                    pattern: '{N}',
+                    baseUrl: url
+                };
+            }
+            return { found: false };
+        }
+
+        function detectSequencePattern(url) {
+            const patterns = [
+                /(\d+)(_thumb|_page|_img)/i,
+                /\/(\d+)\./,
+                /(page|img|image)[-_]?(\d+)/i,
+                /[-_](\d+)[-_]/,
+                /\/(\d{1,4})\w*\./
+            ];
+
+            for (let pattern of patterns) {
+                const match = url.match(pattern);
+                if (match) {
+                    const numberStr = match[1] || match[2];
+                    const number = parseInt(numberStr);
+                    return {
+                        found: true,
+                        number: number,
+                        pattern: match[0],
+                        fullMatch: match[0],
+                        hasLeadingZeros: numberStr.length > 1 && numberStr[0] === '0'
+                    };
+                }
+            }
+            return { found: false };
+        }
+
+        function generateSequenceUrls(baseUrl, start, end, pattern) {
+            const urls = [];
+            
+            if (pattern.manual) {
+                for (let i = start; i <= end; i++) {
+                    const newUrl = baseUrl.replace('{N}', i);
+                    urls.push({ url: newUrl, number: i });
+                }
+                return urls;
+            }
+            
+            const detected = detectSequencePattern(baseUrl);
+            
+            for (let i = start; i <= end; i++) {
+                let newUrl = baseUrl;
+                let numberStr = i.toString();
+                
+                if (detected.hasLeadingZeros) {
+                    const originalLength = detected.number.toString().length;
+                    numberStr = i.toString().padStart(originalLength, '0');
+                }
+                
+                newUrl = baseUrl.replace(pattern.fullMatch, pattern.fullMatch.replace(pattern.number, numberStr));
+                urls.push({ url: newUrl, number: i });
+            }
+            
+            return urls;
+        }
+
+        function addMessage(content, type = 'user') {
+            const chatContainer = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = content;
+            
+            messageDiv.appendChild(contentDiv);
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function addSequenceDetector(url, pattern) {
+            const chatContainer = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message system';
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.style.maxWidth = '90%';
+            
+            const detectorDiv = document.createElement('div');
+            detectorDiv.className = 'sequence-detector';
+            
+            let infoHTML = '<div class="sequence-info">';
+            infoHTML += '<span>🔍 Secuencia detectada</span>';
+            
+            if (pattern.manual) {
+                infoHTML += '<span>🎯 Patrón manual: {N}</span>';
+            } else {
+                infoHTML += `<span>📍 Número actual: ${pattern.number}</span>`;
+                infoHTML += `<span>🎯 Patrón: ${pattern.fullMatch}</span>`;
+            }
+            
+            infoHTML += '</div>';
+            
+            const urlSafe = url.replace(/'/g, "\\'");
+            const patternJSON = JSON.stringify(pattern).replace(/"/g, '&quot;');
+            
+            detectorDiv.innerHTML = infoHTML + `
+                <div class="range-controls">
+                    <span>Desde:</span>
+                    <input type="number" id="rangeStart" value="1" min="1">
+                    <span>Hasta:</span>
+                    <input type="number" id="rangeEnd" value="50" min="1">
+                    <button onclick="loadSequence('${urlSafe}', ${patternJSON})">
+                        🚀 Cargar Secuencia
+                    </button>
+                </div>
+            `;
+            
+            contentDiv.appendChild(detectorDiv);
+            messageDiv.appendChild(contentDiv);
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        let currentImages = [];
+
+        function loadSequence(baseUrl, pattern) {
+            const start = parseInt(document.getElementById('rangeStart').value);
+            const end = parseInt(document.getElementById('rangeEnd').value);
+            
+            if (start > end) {
+                addMessage('⚠️ El número de inicio debe ser menor que el final', 'system');
+                return;
+            }
+
+            if (end - start > 500) {
+                addMessage('⚠️ Máximo 500 imágenes por secuencia', 'system');
+                return;
+            }
+            
+            const sequence = generateSequenceUrls(baseUrl, start, end, pattern);
+            currentImages = sequence;
+            
+            addMessage(`📥 Cargando ${sequence.length} imágenes en la galería...`, 'system');
+            displayImageGrid(sequence);
+        }
+
+        function displayImageGrid(imageSequence) {
+            const galleryContainer = document.getElementById('galleryContainer');
+            galleryContainer.innerHTML = '';
+            
+            const headerDiv = document.createElement('div');
+            headerDiv.className = 'gallery-header';
+            
+            const statsDiv = document.createElement('div');
+            statsDiv.className = 'stats';
+            statsDiv.textContent = `Cargando ${imageSequence.length} imagen(es)...`;
+            
+            const progressContainer = document.createElement('div');
+            progressContainer.className = 'progress-container';
+            
+            const progressBar = document.createElement('div');
+            progressBar.className = 'progress-bar';
+            const progressFill = document.createElement('div');
+            progressFill.className = 'progress-fill';
+            progressFill.style.width = '0%';
+            progressBar.appendChild(progressFill);
+            
+            const progressText = document.createElement('div');
+            progressText.className = 'progress-text';
+            progressText.textContent = '0%';
+            
+            progressContainer.appendChild(progressBar);
+            progressContainer.appendChild(progressText);
+            
+            const downloadBtn = document.createElement('button');
+            downloadBtn.className = 'download-btn';
+            downloadBtn.textContent = '📥 Descargar Todas en ZIP';
+            downloadBtn.style.display = 'none';
+            downloadBtn.onclick = () => downloadAllImagesAsZip(imageSequence);
+            
+            headerDiv.appendChild(statsDiv);
+            headerDiv.appendChild(progressContainer);
+            headerDiv.appendChild(downloadBtn);
+            
+            const gridDiv = document.createElement('div');
+            gridDiv.className = 'image-grid';
+            
+            let loadedCount = 0;
+            let errorCount = 0;
+            
+            imageSequence.forEach((item, index) => {
+                const container = document.createElement('div');
+                container.className = 'image-container';
+                
+                const numberBadge = document.createElement('div');
+                numberBadge.className = 'image-number';
+                numberBadge.textContent = `#${item.number}`;
+                container.appendChild(numberBadge);
+                
+                const loading = document.createElement('div');
+                loading.className = 'image-loading';
+                loading.textContent = '⏳';
+                container.appendChild(loading);
+                
+                const img = document.createElement('img');
+                img.src = item.url;
+                img.alt = `Imagen ${item.number}`;
+                img.style.display = 'none';
+                img.dataset.number = item.number;
+                
+                img.onload = function() {
+                    loading.remove();
+                    img.style.display = 'block';
+                    loadedCount++;
+                    updateStats();
+                };
+                
+                img.onerror = function() {
+                    loading.remove();
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'image-error';
+                    errorDiv.textContent = '❌';
+                    container.appendChild(errorDiv);
+                    errorCount++;
+                    updateStats();
+                };
+                
+                img.onclick = function(e) {
+                    e.stopPropagation();
+                    openModal(item.url);
+                };
+                
+                container.appendChild(img);
+                gridDiv.appendChild(container);
+            });
+            
+            function updateStats() {
+                const total = imageSequence.length;
+                const progress = ((loadedCount + errorCount) / total) * 100;
+                progressFill.style.width = progress + '%';
+                progressText.textContent = `${Math.round(progress)}% completado`;
+                statsDiv.textContent = `✅ ${loadedCount} cargadas | ❌ ${errorCount} errores | 📊 Total: ${total}`;
+                
+                if (loadedCount + errorCount === total && loadedCount > 0) {
+                    downloadBtn.style.display = 'block';
+                }
+            }
+            
+            galleryContainer.appendChild(headerDiv);
+            galleryContainer.appendChild(gridDiv);
+        }
+
+        async function downloadAllImagesAsZip(sequence) {
+            addMessage('📦 Preparando descarga de ZIP...', 'system');
+            
+            const galleryContainer = document.getElementById('galleryContainer');
+            const progressContainer = document.createElement('div');
+            progressContainer.className = 'progress-container';
+            progressContainer.style.position = 'fixed';
+            progressContainer.style.top = '50%';
+            progressContainer.style.left = '50%';
+            progressContainer.style.transform = 'translate(-50%, -50%)';
+            progressContainer.style.zIndex = '9999';
+            progressContainer.style.width = '400px';
+            progressContainer.style.padding = '30px';
+            progressContainer.style.background = '#1a1a1a';
+            progressContainer.style.border = '2px solid #667eea';
+            progressContainer.style.borderRadius = '12px';
+            progressContainer.style.boxShadow = '0 10px 40px rgba(0,0,0,0.8)';
+            
+            const statusText = document.createElement('div');
+            statusText.style.color = '#fff';
+            statusText.style.marginBottom = '15px';
+            statusText.style.fontSize = '16px';
+            statusText.style.textAlign = 'center';
+            statusText.textContent = 'Descargando imágenes...';
+            
+            const progressBar = document.createElement('div');
+            progressBar.className = 'progress-bar';
+            const progressFill = document.createElement('div');
+            progressFill.className = 'progress-fill';
+            progressFill.style.width = '0%';
+            progressBar.appendChild(progressFill);
+            
+            const progressText = document.createElement('div');
+            progressText.className = 'progress-text';
+            progressText.style.textAlign = 'center';
+            progressText.style.marginTop = '10px';
+            progressText.textContent = '0 / ' + sequence.length;
+            
+            progressContainer.appendChild(statusText);
+            progressContainer.appendChild(progressBar);
+            progressContainer.appendChild(progressText);
+            document.body.appendChild(progressContainer);
+            
+            const zip = new JSZip();
+            const imgFolder = zip.folder("imagenes");
+            
+            for (let i = 0; i < sequence.length; i++) {
+                try {
+                    statusText.textContent = `Descargando imagen ${i + 1} de ${sequence.length}...`;
+                    progressFill.style.width = ((i / sequence.length) * 100) + '%';
+                    progressText.textContent = `${i + 1} / ${sequence.length}`;
+                    
+                    const response = await fetch(sequence[i].url);
+                    
+                    if (!response.ok) {
+                        throw new Error('Error al descargar');
+                    }
+                    
+                    const blob = await response.blob();
+                    
+                    let extension = 'jpg';
+                    if (blob.type.includes('png')) extension = 'png';
+                    else if (blob.type.includes('webp')) extension = 'webp';
+                    else if (blob.type.includes('gif')) extension = 'gif';
+                    
+                    const filename = `imagen_${String(sequence[i].number).padStart(4, '0')}.${extension}`;
+                    imgFolder.file(filename, blob);
+                    
+                } catch (error) {
+                    console.error(`Error procesando imagen ${sequence[i].number}:`, error);
+                }
+            }
+            
+            statusText.textContent = '💾 Generando archivo ZIP...';
+            progressFill.style.width = '100%';
+            
+            zip.generateAsync({type: "blob"}).then(function(content) {
+                const url = window.URL.createObjectURL(content);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `imagenes_${Date.now()}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+                progressContainer.remove();
+                addMessage(`✅ ZIP descargado exitosamente: ${sequence.length} imágenes`, 'system');
+            });
+        }
+
+        function processUrls() {
+            const input = document.getElementById('urlInput');
+            const url = input.value.trim();
+            
+            if (!url) return;
+            
+            addMessage(url, 'user');
+            
+            const manualPattern = detectManualPattern(url);
+            if (manualPattern.found) {
+                addMessage('🎯 Patrón manual detectado: {N} será reemplazado por números', 'system');
+                addSequenceDetector(url, manualPattern);
+                input.value = '';
+                return;
+            }
+            
+            const pattern = detectSequencePattern(url);
+            
+            if (pattern.found) {
+                addMessage(`🎯 ¡Secuencia detectada! Número ${pattern.number} encontrado`, 'system');
+                addSequenceDetector(url, pattern);
+            } else {
+                addMessage('📷 Imagen individual detectada', 'system');
+                const singleImage = [{ url: url, number: 1 }];
+                displayImageGrid(singleImage);
+            }
+            
+            input.value = '';
+        }
+
+        function openModal(src) {
+            const modal = document.getElementById('modal');
+            const modalImg = document.getElementById('modalImg');
+            modalImg.src = src;
+            modal.classList.add('active');
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('modal');
+            modal.classList.remove('active');
+        }
+
+        document.getElementById('urlInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                processUrls();
+            }
+        });
+
+        setTimeout(() => {
+            addMessage('👋 ¡Bienvenido! Modos de uso:', 'system');
+            addMessage('1️⃣ Imagen individual: pega cualquier URL de imagen', 'system');
+            addMessage('2️⃣ Secuencia automática: pega URL con número (ej: /foto_5.jpg)', 'system');
+            addMessage('3️⃣ Secuencia manual: usa {N} para marcar el número (ej: /img_{N}.png)', 'system');
+        }, 500);
+    </script>
+</body>
+</html>
