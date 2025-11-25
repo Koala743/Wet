@@ -628,6 +628,15 @@
             const isChecked = this.checked;
             localStorage.setItem('showImagesState', JSON.stringify(isChecked));
             window.switchState = isChecked;
+            
+            const imageItems = document.querySelectorAll('.image-item');
+            imageItems.forEach(item => {
+                if (isChecked) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
         });
 
         function checkCloudflareProtection(url) {
@@ -815,6 +824,9 @@
 
                     const item = document.createElement('div');
                     item.className = 'image-item';
+                    if (!showImages) {
+                        item.style.display = 'none';
+                    }
 
                     const label = document.createElement('div');
                     label.className = 'image-number';
@@ -837,12 +849,6 @@
                         updateProgress(loaded, errors, total);
                     };
                     
-                    img.onerror = () => {
-                        errors++;
-                        item.remove();
-                        updateProgress(loaded, errors, total);
-                    };
-                    
                     img.src = loadResult.url;
                     wrapper.appendChild(img);
                     item.appendChild(label);
@@ -860,7 +866,7 @@
             const perc = Math.round((done / total) * 100);
             document.getElementById('progressFill').style.width = perc + '%';
             document.getElementById('progressFill').textContent = perc + '%';
-            document.getElementById('stats').textContent = `✅ ${loaded} cargadas | ❌ ${errors} errores`;
+            document.getElementById('stats').textContent = `✅ ${loaded} cargadas`;
             
             if (done === total) {
                 document.getElementById('progressBar').style.display = 'none';
