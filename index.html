@@ -68,6 +68,44 @@
             border-color: #6a6aaa;
             box-shadow: 0 0 20px rgba(106, 106, 170, 0.3);
         }
+        .url-history {
+            margin-top: 15px;
+            max-height: 150px;
+            overflow-y: auto;
+            background: #1a1a2e;
+            border: 2px solid #3a3a6a;
+            border-radius: 8px;
+            padding: 10px;
+        }
+        .url-history-item {
+            padding: 8px 12px;
+            margin: 5px 0;
+            background: #2a2a4a;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 13px;
+            color: #aaf;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .url-history-item:hover {
+            background: #3a3a5a;
+            color: #fff;
+        }
+        .url-history-delete {
+            background: #5a3a3a;
+            border: none;
+            color: #fff;
+            padding: 2px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .url-history-delete:hover {
+            background: #7a4a4a;
+        }
         .switch-container {
             display: flex;
             align-items: center;
@@ -416,6 +454,7 @@
                 <div class="url-input-container">
                     <textarea id="urlInput" placeholder="Ejemplo: https://sitio.com/imagen_01.jpg&#10;Se detectará y cargará automáticamente"></textarea>
                 </div>
+                <div class="url-history" id="urlHistory" style="display: none;"></div>
             </div>
 
             <div class="info">
@@ -482,12 +521,110 @@
         let switchState = {};
         let currentModalIndex = 0;
         let isSwipeMode = false;
+        let urlDatabase = [];
 
         const urlInput = document.getElementById('urlInput');
         const showImagesSwitch = document.getElementById('showImagesSwitch');
-
         const startInput = document.getElementById('startNum');
         const endInput = document.getElementById('endNum');
+
+        function loadUrlDatabase() {
+            const stored = localStorage.getItem('urlDatabase');
+            if (stored) {
+                try {
+                    urlDatabase = JSON.parse(stored);
+                } catch (e) {
+                    urlDatabase = [];
+                }
+            }
+        }
+
+        function saveUrlDatabase() {
+            localStorage.setItem('urlDatabase', JSON.stringify(urlDatabase));
+        }
+
+        function addUrlToDatabase(url, paddingLength, hasErrors = false) {
+            if (hasErrors) return;
+            
+            const baseUrl = url.replace(/{N}/g, '');
+            const exists = urlDatabase.some(item => item.baseUrl === baseUrl);
+            
+            if (!exists) {
+                urlDatabase.unshift({ baseUrl, paddingLength, fullUrl: url, timestamp: Date.now() });
+                if (urlDatabase.length > 15) {
+                    urlDatabase.pop();
+                }
+                saveUrlDatabase();
+                displayUrlHistory();
+            }
+        }
+
+        function displayUrlHistory() {
+            const historyEl = document.getElementById('urlHistory');
+            
+            if (urlDatabase.length === 0) {
+                historyEl.style.display = 'none';
+                return;
+            }
+
+            historyEl.innerHTML = '<div style="padding: 8px; font-size: 12px; color: #888; font-weight: bold;">📜 URLs Guardadas:</div>';
+            historyEl.style.display = 'block';
+
+            urlDatabase.forEach((item, idx) => {
+                const div = document.createElement('div');
+                div.className = 'url-history-item';
+                
+                const hasCF = item.fullUrl.includes('chochox.com') || item.fullUrl.includes('cloudflare');
+                const cfLabel = hasCF ? '⚠️ CF' : '';
+                
+                const text = document.createElement('span');
+                text.style.flex = '1';
+                text.style.display = 'flex';
+                text.style.alignItems = 'center';
+                text.style.gap = '8px';
+                
+                const urlText = document.createElement('span');
+                urlText.textContent = item.baseUrl.substring(0, 55) + (item.baseUrl.length > 55 ? '...' : '');
+                
+                if (cfLabel) {
+                    const cfSpan = document.createElement('span');
+                    cfSpan.textContent = cfLabel;
+                    cfSpan.style.fontSize = '11px';
+                    cfSpan.style.color = '#ffaa44';
+                    text.appendChild(cfSpan);
+                }
+                
+                text.appendChild(urlText);
+                text.style.cursor = 'pointer';
+                text.onclick = () => {
+                    urlInput.value = item.fullUrl;
+                    document.getElementById('startNum').value = 1;
+                    document.getElementById('endNum').value = 50;
+                    detectedPadding = item.paddingLength;
+                    autoLoadTimeout = setTimeout(() => {
+                        loadImages();
+                    }, 500);
+                };
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'url-history-delete';
+                deleteBtn.textContent = '🗑️';
+                deleteBtn.title = 'Eliminar';
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    urlDatabase.splice(idx, 1);
+                    saveUrlDatabase();
+                    displayUrlHistory();
+                };
+
+                div.appendChild(text);
+                div.appendChild(deleteBtn);
+                historyEl.appendChild(div);
+            });
+        }
+
+        loadUrlDatabase();
+        displayUrlHistory();
 
         startInput.addEventListener('change', () => {
             if (document.getElementById('urlInput').value.includes('{N}')) {
@@ -512,7 +649,6 @@
             const isChecked = this.checked;
             localStorage.setItem('showImagesState', JSON.stringify(isChecked));
             window.switchState = isChecked;
-            
             toggleImagesVisibility(isChecked);
         });
 
@@ -551,6 +687,7 @@
             if (!url) {
                 document.getElementById('detected').style.display = 'none';
                 document.getElementById('cloudflareWarning').style.display = 'none';
+                displayUrlHistory();
                 return;
             }
 
@@ -749,6 +886,11 @@
                 document.getElementById('progressBar').style.display = 'none';
                 if (loaded > 0) {
                     document.getElementById('downloadBtn').disabled = false;
+                    
+                    if (errors === 0) {
+                        const template = document.getElementById('urlInput').value.trim();
+                        addUrlToDatabase(template, detectedPadding, false);
+                    }
                 }
             }
         }
