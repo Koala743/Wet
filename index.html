@@ -210,16 +210,6 @@
             color: #ffaa44;
             border: 2px solid #5a4a3a;
         }
-        .view-mode-switch {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: #1a1a2e;
-            padding: 20px;
-            border-radius: 12px;
-            border: 3px solid #4a4a7a;
-            margin-bottom: 25px;
-        }
         .gallery {
             background: linear-gradient(135deg, #2a2a4a 0%, #1e1e3f 100%);
             border-radius: 16px;
@@ -272,9 +262,6 @@
             border: 1px solid #2a2a4a;
             transition: all 0.3s;
         }
-        .image-item.hidden-images {
-            display: none;
-        }
         .image-item:hover {
             border-color: #4a4a7a;
             box-shadow: 0 0 20px rgba(74, 74, 122, 0.5);
@@ -304,16 +291,6 @@
             height: 100%;
             object-fit: cover;
             transition: transform 0.4s;
-        }
-        .image-loading {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
-            height: 100%;
-            color: #666;
-            font-size: 40px;
-            background: #1a1a2e;
         }
         .empty-state {
             text-align: center;
@@ -462,7 +439,7 @@
             </div>
 
             <div class="warning" style="display: none;" id="cloudflareWarning">
-                ⚠️ Tiene Cloudflare
+                ⚠️ Sitio con Cloudflare - Puede tener limitaciones
             </div>
 
             <div id="detected" class="detected" style="display: none;"></div>
@@ -517,6 +494,7 @@
     <script>
         let loadedImages = [];
         let detectedPadding = 0;
+        let detectedFormat = 'normal';
         let autoLoadTimeout = null;
         let switchState = {};
         let currentModalIndex = 0;
@@ -543,14 +521,14 @@
             localStorage.setItem('urlDatabase', JSON.stringify(urlDatabase));
         }
 
-        function addUrlToDatabase(url, paddingLength, hasErrors = false) {
+        function addUrlToDatabase(url, paddingLength, format, hasErrors = false) {
             if (hasErrors) return;
             
             const baseUrl = url.replace(/{N}/g, '');
             const exists = urlDatabase.some(item => item.baseUrl === baseUrl);
             
             if (!exists) {
-                urlDatabase.unshift({ baseUrl, paddingLength, fullUrl: url, timestamp: Date.now() });
+                urlDatabase.unshift({ baseUrl, paddingLength, format, fullUrl: url, timestamp: Date.now() });
                 if (urlDatabase.length > 15) {
                     urlDatabase.pop();
                 }
@@ -601,6 +579,7 @@
                     document.getElementById('startNum').value = 1;
                     document.getElementById('endNum').value = 50;
                     detectedPadding = item.paddingLength;
+                    detectedFormat = item.format;
                     autoLoadTimeout = setTimeout(() => {
                         loadImages();
                     }, 500);
@@ -649,19 +628,7 @@
             const isChecked = this.checked;
             localStorage.setItem('showImagesState', JSON.stringify(isChecked));
             window.switchState = isChecked;
-            toggleImagesVisibility(isChecked);
         });
-
-        function toggleImagesVisibility(show) {
-            const imageItems = document.querySelectorAll('.image-item');
-            imageItems.forEach(item => {
-                if (show) {
-                    item.classList.remove('hidden-images');
-                } else {
-                    item.classList.add('hidden-images');
-                }
-            });
-        }
 
         function checkCloudflareProtection(url) {
             const protectedDomains = ['chochox.com', 'cloudflare'];
@@ -704,7 +671,7 @@
             if (!url) return;
 
             if (url.includes('{N}')) {
-                document.getElementById('detected').textContent = '✅ URL detectada con {N}';
+                document.getElementById('detected').textContent = '✅ URL detectada con {N} - Buscando formato...';
                 document.getElementById('detected').style.display = 'block';
                 loadImages();
                 return;
@@ -727,6 +694,7 @@
                     const lastMatch = matches[matches.length - 1];
                     const number = lastMatch[1];
                     detectedPadding = number.length;
+                    detectedFormat = number.length === 2 ? 'padded' : 'normal';
                     
                     const fullMatch = lastMatch[0];
                     const index = url.lastIndexOf(fullMatch);
@@ -734,8 +702,6 @@
                     
                     url = url.substring(0, numberIndex) + '{N}' + url.substring(numberIndex + number.length);
                     document.getElementById('urlInput').value = url;
-                    
-                    const numValue = parseInt(number);
                     
                     document.getElementById('detected').textContent = `✅ Detectado: ${number} (${pattern.desc}) - ${detectedPadding} dígitos`;
                     document.getElementById('detected').style.display = 'block';
@@ -756,8 +722,8 @@
             return String(num).padStart(padding, '0');
         }
 
-        function generateURL(template, number) {
-            const paddedNumber = padNumber(number, detectedPadding);
+        function generateURL(template, number, format) {
+            const paddedNumber = padNumber(number, format);
             return template.replace(/{N}/g, paddedNumber);
         }
 
@@ -765,25 +731,44 @@
             return `https://corsproxy.io/?${encodeURIComponent(url)}`;
         }
 
-        async function tryLoadImage(originalUrl) {
+        async function tryLoadImageWithFormats(baseTemplate, number) {
+            const formats = [
+                { padding: 2, name: 'padded02' },
+                { padding: 3, name: 'padded03' },
+                { padding: 1, name: 'single' },
+                { padding: detectedPadding, name: 'original' }
+            ];
+
+            for (let format of formats) {
+                const url = generateURL(baseTemplate, number, format.padding);
+                const result = await tryLoadImage(url);
+                if (result.success) {
+                    return { ...result, format: format.name, padding: format.padding };
+                }
+            }
+
+            return { success: false, url: '', format: 'failed', padding: detectedPadding };
+        }
+
+        async function tryLoadImage(url) {
             return new Promise((resolve) => {
                 const img = new Image();
                 const timeout = setTimeout(() => {
                     img.src = '';
-                    resolve({ success: false, url: originalUrl, useProxy: true });
-                }, 5000);
+                    resolve({ success: false, url });
+                }, 3000);
 
                 img.onload = () => {
                     clearTimeout(timeout);
-                    resolve({ success: true, url: originalUrl, useProxy: false });
+                    resolve({ success: true, url });
                 };
                 
                 img.onerror = () => {
                     clearTimeout(timeout);
-                    resolve({ success: false, url: originalUrl, useProxy: true });
+                    resolve({ success: false, url });
                 };
                 
-                img.src = originalUrl;
+                img.src = url;
             });
         }
 
@@ -794,9 +779,7 @@
             const showImages = showImagesSwitch.checked;
 
             if (!template) return;
-            
             if (!template.includes('{N}')) return;
-            
             if (start > end) return;
             
             if (end - start > 200) {
@@ -816,62 +799,59 @@
             const total = end - start + 1;
             let loaded = 0;
             let errors = 0;
+            let successfulPadding = null;
 
             for (let i = start; i <= end; i++) {
-                const originalUrl = generateURL(template, i);
+                const numLabel = padNumber(i, detectedPadding);
 
-                const item = document.createElement('div');
-                item.className = 'image-item';
-                if (!showImages) {
-                    item.classList.add('hidden-images');
-                }
-
-                const numLabel = document.createElement('div');
-                numLabel.className = 'image-number';
-                numLabel.textContent = padNumber(i, detectedPadding);
-
-                const wrapper = document.createElement('div');
-                wrapper.className = 'image-wrapper';
-
-                const loading = document.createElement('div');
-                loading.className = 'image-loading';
-                loading.textContent = '⏳';
-                wrapper.appendChild(loading);
-
-                const img = document.createElement('img');
-                img.style.display = 'none';
-
-                const loadResult = await tryLoadImage(originalUrl);
+                const loadResult = await tryLoadImageWithFormats(template, i);
                 
-                const finalUrl = loadResult.success ? originalUrl : applyProxy(originalUrl);
-                
-                img.onload = () => {
-                    loading.remove();
-                    img.style.display = 'block';
-                    loaded++;
-                    const imageIndex = loadedImages.length;
-                    loadedImages.push({ 
-                        originalUrl, 
-                        finalUrl, 
-                        number: i,
-                        usedProxy: loadResult.useProxy 
-                    });
-                    wrapper.onclick = () => openModal(imageIndex);
-                    updateProgress(loaded, errors, total);
-                };
-                
-                img.onerror = () => {
-                    loading.textContent = '❌';
+                if (loadResult.success) {
+                    if (successfulPadding === null) {
+                        successfulPadding = loadResult.padding;
+                        detectedPadding = loadResult.padding;
+                        document.getElementById('detected').textContent = `✅ Formato detectado: ${padNumber(i, loadResult.padding)} (${loadResult.padding} dígitos)`;
+                    }
+
+                    const item = document.createElement('div');
+                    item.className = 'image-item';
+
+                    const label = document.createElement('div');
+                    label.className = 'image-number';
+                    label.textContent = numLabel;
+
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'image-wrapper';
+
+                    const img = document.createElement('img');
+                    
+                    img.onload = () => {
+                        loaded++;
+                        const imageIndex = loadedImages.length;
+                        loadedImages.push({ 
+                            url: loadResult.url, 
+                            number: i,
+                            format: loadResult.format
+                        });
+                        wrapper.onclick = () => openModal(imageIndex);
+                        updateProgress(loaded, errors, total);
+                    };
+                    
+                    img.onerror = () => {
+                        errors++;
+                        item.remove();
+                        updateProgress(loaded, errors, total);
+                    };
+                    
+                    img.src = loadResult.url;
+                    wrapper.appendChild(img);
+                    item.appendChild(label);
+                    item.appendChild(wrapper);
+                    grid.appendChild(item);
+                } else {
                     errors++;
                     updateProgress(loaded, errors, total);
-                };
-                
-                img.src = finalUrl;
-                wrapper.appendChild(img);
-                
-                item.appendChild(numLabel);
-                item.appendChild(wrapper);
-                grid.appendChild(item);
+                }
             }
         }
 
@@ -880,17 +860,14 @@
             const perc = Math.round((done / total) * 100);
             document.getElementById('progressFill').style.width = perc + '%';
             document.getElementById('progressFill').textContent = perc + '%';
-            document.getElementById('stats').textContent = `✅ ${loaded} cargadas | ❌ ${errors} errores | Total: ${total}`;
+            document.getElementById('stats').textContent = `✅ ${loaded} cargadas | ❌ ${errors} errores`;
             
             if (done === total) {
                 document.getElementById('progressBar').style.display = 'none';
                 if (loaded > 0) {
                     document.getElementById('downloadBtn').disabled = false;
-                    
-                    if (errors === 0) {
-                        const template = document.getElementById('urlInput').value.trim();
-                        addUrlToDatabase(template, detectedPadding, false);
-                    }
+                    const template = document.getElementById('urlInput').value.trim();
+                    addUrlToDatabase(template, detectedPadding, detectedFormat, false);
                 }
             }
         }
@@ -923,7 +900,7 @@
                 container.className = 'modal-image-container';
                 
                 const image = document.createElement('img');
-                image.src = img.finalUrl;
+                image.src = img.url;
                 image.alt = `Imagen ${idx + 1}`;
                 
                 container.appendChild(image);
@@ -933,12 +910,10 @@
             if (isSwipeMode) {
                 modal.classList.remove('scroll-mode');
                 modal.classList.add('swipe-mode');
-                
                 modal.addEventListener('scroll', handleSwipeScroll);
             } else {
                 modal.classList.remove('swipe-mode');
                 modal.classList.add('scroll-mode');
-                
                 modal.removeEventListener('scroll', handleSwipeScroll);
             }
         }
@@ -998,25 +973,13 @@
                 btn.textContent = `⬇️ Descargando ${i + 1}/${loadedImages.length}`;
                 
                 try {
-                    const urlToFetch = img.usedProxy ? img.finalUrl : img.originalUrl;
-                    
-                    let res;
-                    try {
-                        res = await fetch(urlToFetch);
-                    } catch (e) {
-                        if (!img.usedProxy) {
-                            res = await fetch(applyProxy(img.originalUrl));
-                        } else {
-                            throw e;
-                        }
-                    }
-                    
+                    let res = await fetch(img.url);
                     const blob = await res.blob();
-                    const ext = img.originalUrl.split('.').pop().split('?')[0];
+                    const ext = img.url.split('.').pop().split('?')[0];
                     const name = `imagen_${padNumber(img.number, detectedPadding)}.${ext}`;
                     folder.file(name, blob);
                 } catch (e) {
-                    console.error('Error descargando:', img.originalUrl, e);
+                    console.error('Error descargando:', img.url, e);
                 }
             }
 
