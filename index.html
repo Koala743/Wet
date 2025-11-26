@@ -564,10 +564,12 @@
         let shouldStopLoading = false;
         let totalImagesToLoad = 0;
         let useProxy = false;
+        let currentProxyIndex = 0;
         const corsProxies = [
             'https://corsproxy.io/?',
             'https://api.allorigins.win/raw?url=',
-            ''
+            'https://cors-anywhere.herokuapp.com/',
+            'https://thingproxy.freeboard.io/fetch/'
         ];
 
         const urlInput = document.getElementById('urlInput');
@@ -903,10 +905,17 @@
                 const img = new Image();
                 img.crossOrigin = 'anonymous';
                 
-                const finalUrl = useProxy ? corsProxies[0] + encodeURIComponent(url) : url;
+                let finalUrl = url;
+                if (useProxy) {
+                    finalUrl = corsProxies[currentProxyIndex] + encodeURIComponent(url);
+                }
                 
                 const timeout = setTimeout(() => {
                     img.src = '';
+                    if (useProxy && currentProxyIndex < corsProxies.length - 1) {
+                        currentProxyIndex++;
+                        console.log(`Cambiando a proxy ${currentProxyIndex + 1}`);
+                    }
                     resolve({ success: false, url: url });
                 }, 600);
 
@@ -917,6 +926,10 @@
                 
                 img.onerror = () => {
                     clearTimeout(timeout);
+                    if (useProxy && currentProxyIndex < corsProxies.length - 1) {
+                        currentProxyIndex++;
+                        console.log(`Proxy falló, cambiando a proxy ${currentProxyIndex + 1}`);
+                    }
                     resolve({ success: false, url: url });
                 };
                 
@@ -951,6 +964,7 @@
             shouldStopLoading = false;
             detectedDimensionPattern = null;
             skipDimensionCheck = false;
+            currentProxyIndex = 0;
 
             totalImagesToLoad = end - start + 1;
             let loaded = 0;
@@ -997,7 +1011,10 @@
                     img.onload = () => {
                         loaded++;
                         const imageIndex = loadedImages.length;
-                        const finalUrl = useProxy ? corsProxies[0] + encodeURIComponent(loadResult.url) : loadResult.url;
+                        let finalUrl = loadResult.url;
+                        if (useProxy) {
+                            finalUrl = corsProxies[currentProxyIndex] + encodeURIComponent(loadResult.url);
+                        }
                         loadedImages.push({ 
                             url: finalUrl, 
                             originalUrl: loadResult.url,
@@ -1008,7 +1025,10 @@
                         updateProgress(loaded, errors, checkedCount);
                     };
                     
-                    const displayUrl = useProxy ? corsProxies[0] + encodeURIComponent(loadResult.url) : loadResult.url;
+                    let displayUrl = loadResult.url;
+                    if (useProxy) {
+                        displayUrl = corsProxies[currentProxyIndex] + encodeURIComponent(loadResult.url);
+                    }
                     img.src = displayUrl;
                     wrapper.appendChild(img);
                     item.appendChild(label);
@@ -1222,7 +1242,10 @@
         async function fetchPageTitle(url) {
             try {
                 const baseUrl = new URL(url).origin;
-                const fetchUrl = useProxy ? corsProxies[0] + encodeURIComponent(baseUrl) : baseUrl;
+                let fetchUrl = baseUrl;
+                if (useProxy) {
+                    fetchUrl = corsProxies[currentProxyIndex] + encodeURIComponent(baseUrl);
+                }
                 
                 const response = await fetch(fetchUrl);
                 const html = await response.text();
@@ -1296,7 +1319,10 @@
                 
                 try {
                     const urlToFetch = img.originalUrl || img.url;
-                    const fetchUrl = useProxy ? corsProxies[0] + encodeURIComponent(urlToFetch) : urlToFetch;
+                    let fetchUrl = urlToFetch;
+                    if (useProxy) {
+                        fetchUrl = corsProxies[currentProxyIndex] + encodeURIComponent(urlToFetch);
+                    }
                     
                     let res = await fetch(fetchUrl);
                     const blob = await res.blob();
