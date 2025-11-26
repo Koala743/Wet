@@ -452,6 +452,14 @@
                 </label>
             </div>
 
+            <div class="switch-container">
+                <span class="switch-label">🔓 Usar Proxy CORS (para sitios bloqueados)</span>
+                <label class="switch">
+                    <input type="checkbox" id="proxySwitch">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
             <div class="range-group">
                 <div class="input-group">
                     <label>📍 Desde</label>
@@ -505,11 +513,31 @@
         let consecutiveErrors = 0;
         let shouldStopLoading = false;
         let totalImagesToLoad = 0;
+        let useProxy = false;
+        const corsProxies = [
+            'https://corsproxy.io/?',
+            'https://api.allorigins.win/raw?url=',
+            ''
+        ];
 
         const urlInput = document.getElementById('urlInput');
         const showImagesSwitch = document.getElementById('showImagesSwitch');
+        const proxySwitch = document.getElementById('proxySwitch');
         const startInput = document.getElementById('startNum');
         const endInput = document.getElementById('endNum');
+
+        proxySwitch.addEventListener('change', function() {
+            useProxy = this.checked;
+            localStorage.setItem('useProxy', JSON.stringify(useProxy));
+            if (useProxy) {
+                document.getElementById('detected').textContent = '🔓 Proxy CORS activado - Puede cargar sitios bloqueados';
+                document.getElementById('detected').style.display = 'block';
+            }
+        });
+
+        const savedProxy = JSON.parse(localStorage.getItem('useProxy') || 'false');
+        proxySwitch.checked = savedProxy;
+        useProxy = savedProxy;
 
         function loadUrlDatabase() {
             const stored = localStorage.getItem('urlDatabase');
@@ -823,22 +851,26 @@
         async function tryLoadImage(url) {
             return new Promise((resolve) => {
                 const img = new Image();
+                img.crossOrigin = 'anonymous';
+                
+                const finalUrl = useProxy ? corsProxies[0] + encodeURIComponent(url) : url;
+                
                 const timeout = setTimeout(() => {
                     img.src = '';
-                    resolve({ success: false, url });
+                    resolve({ success: false, url: url });
                 }, 600);
 
                 img.onload = () => {
                     clearTimeout(timeout);
-                    resolve({ success: true, url });
+                    resolve({ success: true, url: url });
                 };
                 
                 img.onerror = () => {
                     clearTimeout(timeout);
-                    resolve({ success: false, url });
+                    resolve({ success: false, url: url });
                 };
                 
-                img.src = url;
+                img.src = finalUrl;
             });
         }
 
@@ -910,12 +942,15 @@
                     wrapper.className = 'image-wrapper';
 
                     const img = document.createElement('img');
+                    img.crossOrigin = 'anonymous';
                     
                     img.onload = () => {
                         loaded++;
                         const imageIndex = loadedImages.length;
+                        const finalUrl = useProxy ? corsProxies[0] + encodeURIComponent(loadResult.url) : loadResult.url;
                         loadedImages.push({ 
-                            url: loadResult.url, 
+                            url: finalUrl, 
+                            originalUrl: loadResult.url,
                             number: i,
                             format: loadResult.format
                         });
@@ -923,7 +958,8 @@
                         updateProgress(loaded, errors, checkedCount);
                     };
                     
-                    img.src = loadResult.url;
+                    const displayUrl = useProxy ? corsProxies[0] + encodeURIComponent(loadResult.url) : loadResult.url;
+                    img.src = displayUrl;
                     wrapper.appendChild(img);
                     item.appendChild(label);
                     item.appendChild(wrapper);
@@ -996,6 +1032,7 @@
                 container.className = 'modal-image-container';
                 
                 const image = document.createElement('img');
+                image.crossOrigin = 'anonymous';
                 image.src = img.url;
                 image.alt = `Imagen ${idx + 1}`;
                 
@@ -1069,9 +1106,12 @@
                 btn.textContent = `⬇️ Descargando ${i + 1}/${loadedImages.length}`;
                 
                 try {
-                    let res = await fetch(img.url);
+                    const urlToFetch = img.originalUrl || img.url;
+                    const fetchUrl = useProxy ? corsProxies[0] + encodeURIComponent(urlToFetch) : urlToFetch;
+                    
+                    let res = await fetch(fetchUrl);
                     const blob = await res.blob();
-                    const ext = img.url.split('.').pop().split('?')[0];
+                    const ext = urlToFetch.split('.').pop().split('?')[0];
                     const name = `imagen_${padNumber(img.number, detectedPadding)}.${ext}`;
                     folder.file(name, blob);
                 } catch (e) {
