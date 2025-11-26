@@ -150,37 +150,33 @@ function toggleAutoPattern(){
 useAutoPattern=document.getElementById('autoPatternToggle').checked;
 saveSettings();
 }
-function savePattern(patternUrl){
-if(!db||!patternUrl.includes('{N}'))return;
-const transaction=db.transaction(['patterns'],'readwrite');
-const store=transaction.objectStore('patterns');
-store.put({pattern:patternUrl,timestamp:Date.now()});
-}
-async function saveImageCache(url,blob){
+async function cacheSequence(pattern,imageUrls){
 if(!db)return;
-try{
 const transaction=db.transaction(['images'],'readwrite');
 const store=transaction.objectStore('images');
-store.put({url:url,blob:blob,timestamp:Date.now()});
-}catch(error){
-console.error('Error guardando imagen:',error);
+store.put({url:pattern,images:imageUrls,timestamp:Date.now()});
 }
-}
-async function getImageCache(url){
+async function getCachedSequence(pattern){
 if(!db)return null;
 return new Promise((resolve)=>{
 const transaction=db.transaction(['images'],'readonly');
 const store=transaction.objectStore('images');
-const request=store.get(url);
+const request=store.get(pattern);
 request.onsuccess=(e)=>{
 if(e.target.result){
-resolve(e.target.result.blob);
+resolve(e.target.result.images);
 }else{
 resolve(null);
 }
 };
 request.onerror=()=>resolve(null);
 });
+}
+function savePattern(patternUrl){
+if(!db||!patternUrl.includes('{N}'))return;
+const transaction=db.transaction(['patterns'],'readwrite');
+const store=transaction.objectStore('patterns');
+store.put({pattern:patternUrl,timestamp:Date.now()});
 }
 function extractPattern(url){
 const parts=url.split('/');
@@ -270,10 +266,10 @@ img.src=url;
 async function loadSequence(urlPattern){
 const status=document.getElementById('status');
 const downloadSection=document.getElementById('downloadSection');
-status.innerHTML='<span class="loading">Verificando caché local</span>';
-const cachedImages=await checkCachedSequence(urlPattern);
+const cachedImages=await getCachedSequence(urlPattern);
 if(cachedImages&&cachedImages.length>0){
-allImages=cachedImages.map(img=>img.url);
+status.textContent='⚡ Cargando desde caché...';
+allImages=cachedImages;
 currentImageUrl=allImages[0];
 showPreview();
 status.textContent=`✅ ${allImages.length} imagen${allImages.length!==1?'es':''} cargada${allImages.length!==1?'s':''} desde caché`;
@@ -298,24 +294,18 @@ while(consecutiveFailures<maxConsecutiveFailures){
 const numStr=format==='padded'?String(currentNum).padStart(paddingLength,'0'):String(currentNum);
 const imageUrl=urlPattern.replace('{N}',numStr);
 const exists=await checkImageExists(imageUrl);
-if(exists){
-allImages.push(imageUrl);
-await cacheImage(imageUrl);
-consecutiveFailures=0;
-}else{
-consecutiveFailures++;
-}
+if(exists){allImages.push(imageUrl);consecutiveFailures=0;}else{consecutiveFailures++;}
 currentNum++;
 status.innerHTML=`<span class="loading">Cargadas: ${allImages.length} imágenes</span>`;
 await new Promise(resolve=>setTimeout(resolve,100));
 }
 if(allImages.length>0){
+await cacheSequence(urlPattern,allImages);
 currentImageUrl=allImages[0];
 showPreview();
 status.textContent=`✅ ${allImages.length} imagen${allImages.length!==1?'es':''} cargada${allImages.length!==1?'s':''} exitosamente`;
 downloadSection.style.display='block';
 }else{status.textContent='❌ No se encontraron imágenes';}
-}
 }
 function checkImageExists(url){
 return new Promise((resolve)=>{
@@ -324,47 +314,6 @@ img.onload=()=>resolve(true);
 img.onerror=()=>resolve(false);
 img.src=url;
 setTimeout(()=>resolve(false),5000);
-});
-}
-async function cacheImage(url){
-try{
-const response=await fetch(url);
-const blob=await response.blob();
-await saveImageCache(url,blob);
-}catch(error){
-console.error('Error cacheando imagen:',error);
-}
-}
-async function checkCachedSequence(urlPattern){
-if(!db)return null;
-return new Promise((resolve)=>{
-const transaction=db.transaction(['images'],'readonly');
-const store=transaction.objectStore('images');
-const request=store.openCursor();
-const cachedImages=[];
-request.onsuccess=(e)=>{
-const cursor=e.target.result;
-if(cursor){
-const url=cursor.value.url;
-const regex=urlPattern.replace('{N}','(\\d+)');
-if(url.match(new RegExp(regex))){
-cachedImages.push({url:url,blob:cursor.value.blob});
-}
-cursor.continue();
-}else{
-if(cachedImages.length>0){
-cachedImages.sort((a,b)=>{
-const numA=parseInt(a.url.match(/\d+/)[0]);
-const numB=parseInt(b.url.match(/\d+/)[0]);
-return numA-numB;
-});
-resolve(cachedImages);
-}else{
-resolve(null);
-}
-}
-};
-request.onerror=()=>resolve(null);
 });
 }
 function showPreview(){
