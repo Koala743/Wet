@@ -499,6 +499,8 @@
         let switchState = {};
         let currentModalIndex = 0;
         let isSwipeMode = false;
+        let detectedDimensionPattern = null;
+        let skipDimensionCheck = false;
         let urlDatabase = [];
         let consecutiveErrors = 0;
         let shouldStopLoading = false;
@@ -692,6 +694,7 @@
             const patterns = [
                 { regex: /\/(\d+)_/g, desc: 'número antes de guión bajo' },
                 { regex: /_(\d+)\./g, desc: 'número después de guión bajo' },
+                { regex: /-(\d+)-\d+x\d+/g, desc: 'número antes de dimensiones' },
                 { regex: /-(\d+)-/g, desc: 'número entre guiones' },
                 { regex: /-(\d+)\./g, desc: 'número después de guión' },
                 { regex: /\/(\d+)\./g, desc: 'número antes de extensión' },
@@ -712,7 +715,11 @@
                     const index = url.lastIndexOf(fullMatch);
                     const numberIndex = url.indexOf(number, index);
                     
-                    url = url.substring(0, numberIndex) + '{N}' + url.substring(numberIndex + number.length);
+                    const beforeNumber = url.substring(0, numberIndex);
+                    const afterNumber = url.substring(numberIndex + number.length);
+                    const cleanAfter = afterNumber.replace(/-\d+x\d+/g, '');
+                    
+                    url = beforeNumber + '{N}' + cleanAfter;
                     document.getElementById('urlInput').value = url;
                     
                     document.getElementById('detected').textContent = `✅ Detectado: ${number} (${pattern.desc}) - ${detectedPadding} dígitos`;
@@ -740,6 +747,29 @@
         }
 
         async function tryLoadImageWithFormats(baseTemplate, number) {
+            if (skipDimensionCheck && detectedDimensionPattern !== null) {
+                const paddedNum = padNumber(number, detectedPadding);
+                const url = baseTemplate.replace(/{N}/g, paddedNum + detectedDimensionPattern);
+                const result = await tryLoadImage(url);
+                
+                if (result.success) {
+                    return { ...result, format: 'cached', padding: detectedPadding };
+                }
+            }
+
+            const dimensionVariants = [
+                '',
+                '-724x1024',
+                '-768x1244',
+                '-800x1200',
+                '-1024x768',
+                '-640x960',
+                '-750x1334',
+                '-1080x1920',
+                '-600x900',
+                '-700x1000'
+            ];
+
             const formats = [
                 { padding: detectedPadding, name: 'original' },
                 { padding: 2, name: 'padded02' },
@@ -747,16 +777,44 @@
                 { padding: 1, name: 'single' }
             ];
 
+            const promises = [];
+            
             for (let format of formats) {
-                const url = generateURL(baseTemplate, number, format.padding);
-                const result = await tryLoadImage(url);
-                if (result.success) {
-                    if (detectedPadding !== format.padding) {
-                        detectedPadding = format.padding;
-                        document.getElementById('detected').textContent = `✅ Formato ajustado: ${format.padding} dígitos`;
-                    }
-                    return { ...result, format: format.name, padding: format.padding };
+                for (let dimension of dimensionVariants) {
+                    const paddedNum = padNumber(number, format.padding);
+                    const urlWithDimension = baseTemplate.replace(/{N}/g, paddedNum + dimension);
+                    promises.push(
+                        tryLoadImage(urlWithDimension).then(result => ({
+                            ...result,
+                            format: format.name,
+                            padding: format.padding,
+                            dimension: dimension
+                        }))
+                    );
                 }
+            }
+
+            const results = await Promise.all(promises);
+            const successful = results.find(r => r.success);
+            
+            if (successful) {
+                if (detectedPadding !== successful.padding) {
+                    detectedPadding = successful.padding;
+                    document.getElementById('detected').textContent = `✅ Formato ajustado: ${successful.padding} dígitos`;
+                }
+                
+                if (!skipDimensionCheck) {
+                    detectedDimensionPattern = successful.dimension;
+                    skipDimensionCheck = true;
+                    
+                    if (detectedDimensionPattern === '') {
+                        document.getElementById('detected').textContent = `✅ Sin dimensiones en URL - Carga rápida activada`;
+                    } else {
+                        document.getElementById('detected').textContent = `✅ Patrón detectado: ${detectedDimensionPattern} - Carga rápida activada`;
+                    }
+                }
+                
+                return successful;
             }
 
             return { success: false, url: '', format: 'failed', padding: detectedPadding };
@@ -768,7 +826,7 @@
                 const timeout = setTimeout(() => {
                     img.src = '';
                     resolve({ success: false, url });
-                }, 3000);
+                }, 600);
 
                 img.onload = () => {
                     clearTimeout(timeout);
@@ -809,12 +867,15 @@
             loadedImages = [];
             consecutiveErrors = 0;
             shouldStopLoading = false;
+            detectedDimensionPattern = null;
+            skipDimensionCheck = false;
 
             totalImagesToLoad = end - start + 1;
             let loaded = 0;
             let errors = 0;
             let successfulPadding = null;
             let checkedCount = 0;
+            let lastSuccessfulNumber = start - 1;
 
             for (let i = start; i <= end; i++) {
                 if (shouldStopLoading) {
@@ -827,6 +888,7 @@
                 
                 if (loadResult.success) {
                     consecutiveErrors = 0;
+                    lastSuccessfulNumber = i;
                     
                     if (successfulPadding === null) {
                         successfulPadding = loadResult.padding;
@@ -870,9 +932,11 @@
                     errors++;
                     consecutiveErrors++;
                     
-                    if (consecutiveErrors >= 5) {
+                    if (consecutiveErrors >= 2) {
                         shouldStopLoading = true;
-                        document.getElementById('detected').textContent = `⚠️ Detenido: 5 errores consecutivos. ${loaded} imágenes cargadas.`;
+                        const nextNumber = lastSuccessfulNumber + 1;
+                        const missingUrl = generateURL(template, nextNumber, detectedPadding);
+                        document.getElementById('detected').textContent = `✅ Carga completada: ${loaded} imágenes (${padNumber(start, detectedPadding)} - ${padNumber(lastSuccessfulNumber, detectedPadding)})`;
                         document.getElementById('progressBar').style.display = 'none';
                         if (loaded > 0) {
                             document.getElementById('downloadBtn').disabled = false;
@@ -891,6 +955,7 @@
             } else if (!shouldStopLoading && loaded > 0) {
                 document.getElementById('progressBar').style.display = 'none';
                 document.getElementById('downloadBtn').disabled = false;
+                document.getElementById('detected').textContent = `✅ Carga completada: ${loaded} imágenes encontradas`;
                 const template = document.getElementById('urlInput').value.trim();
                 addUrlToDatabase(template, detectedPadding, detectedFormat, false);
             }
