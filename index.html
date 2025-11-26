@@ -500,6 +500,8 @@
         let currentModalIndex = 0;
         let isSwipeMode = false;
         let urlDatabase = [];
+        let consecutiveErrors = 0;
+        let shouldStopLoading = false;
 
         const urlInput = document.getElementById('urlInput');
         const showImagesSwitch = document.getElementById('showImagesSwitch');
@@ -736,22 +738,22 @@
             return template.replace(/{N}/g, paddedNumber);
         }
 
-        function applyProxy(url) {
-            return `https://corsproxy.io/?${encodeURIComponent(url)}`;
-        }
-
         async function tryLoadImageWithFormats(baseTemplate, number) {
             const formats = [
+                { padding: detectedPadding, name: 'original' },
                 { padding: 2, name: 'padded02' },
                 { padding: 3, name: 'padded03' },
-                { padding: 1, name: 'single' },
-                { padding: detectedPadding, name: 'original' }
+                { padding: 1, name: 'single' }
             ];
 
             for (let format of formats) {
                 const url = generateURL(baseTemplate, number, format.padding);
                 const result = await tryLoadImage(url);
                 if (result.success) {
+                    if (detectedPadding !== format.padding) {
+                        detectedPadding = format.padding;
+                        document.getElementById('detected').textContent = `✅ Formato ajustado: ${format.padding} dígitos`;
+                    }
                     return { ...result, format: format.name, padding: format.padding };
                 }
             }
@@ -804,6 +806,8 @@
             const grid = document.getElementById('imageGrid');
             grid.innerHTML = '';
             loadedImages = [];
+            consecutiveErrors = 0;
+            shouldStopLoading = false;
 
             const total = end - start + 1;
             let loaded = 0;
@@ -811,11 +815,16 @@
             let successfulPadding = null;
 
             for (let i = start; i <= end; i++) {
-                const numLabel = padNumber(i, detectedPadding);
+                if (shouldStopLoading) {
+                    break;
+                }
 
+                const numLabel = padNumber(i, detectedPadding);
                 const loadResult = await tryLoadImageWithFormats(template, i);
                 
                 if (loadResult.success) {
+                    consecutiveErrors = 0;
+                    
                     if (successfulPadding === null) {
                         successfulPadding = loadResult.padding;
                         detectedPadding = loadResult.padding;
@@ -856,8 +865,24 @@
                     grid.appendChild(item);
                 } else {
                     errors++;
-                    updateProgress(loaded, errors, total);
+                    consecutiveErrors++;
+                    
+                    if (consecutiveErrors >= 5) {
+                        shouldStopLoading = true;
+                        document.getElementById('detected').textContent = `⚠️ Detenido: 5 errores consecutivos. ${loaded} imágenes cargadas.`;
+                        document.getElementById('progressBar').style.display = 'none';
+                        if (loaded > 0) {
+                            document.getElementById('downloadBtn').disabled = false;
+                            addUrlToDatabase(template, detectedPadding, detectedFormat, false);
+                        }
+                        break;
+                    }
                 }
+            }
+            
+            if (!shouldStopLoading && loaded === 0) {
+                document.getElementById('detected').textContent = '❌ No se pudieron cargar imágenes. Verifica la URL.';
+                document.getElementById('progressBar').style.display = 'none';
             }
         }
 
@@ -868,7 +893,7 @@
             document.getElementById('progressFill').textContent = perc + '%';
             document.getElementById('stats').textContent = `✅ ${loaded} cargadas`;
             
-            if (done === total) {
+            if (done === total || shouldStopLoading) {
                 document.getElementById('progressBar').style.display = 'none';
                 if (loaded > 0) {
                     document.getElementById('downloadBtn').disabled = false;
