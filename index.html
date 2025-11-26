@@ -97,7 +97,7 @@ const corsProxies=['https://corsproxy.io/?','https://api.allorigins.win/raw?url=
 let currentProxyIndex=0;
 let db;
 function initDB(){
-const request=indexedDB.open('ImageLoaderDB',2);
+const request=indexedDB.open('ImageLoaderDB',3);
 request.onerror=()=>console.error('Error abriendo IndexedDB');
 request.onsuccess=(e)=>{
 db=e.target.result;
@@ -110,6 +110,9 @@ db.createObjectStore('settings',{keyPath:'key'});
 }
 if(!db.objectStoreNames.contains('patterns')){
 db.createObjectStore('patterns',{keyPath:'pattern'});
+}
+if(!db.objectStoreNames.contains('images')){
+db.createObjectStore('images',{keyPath:'url'});
 }
 };
 }
@@ -152,6 +155,32 @@ if(!db||!patternUrl.includes('{N}'))return;
 const transaction=db.transaction(['patterns'],'readwrite');
 const store=transaction.objectStore('patterns');
 store.put({pattern:patternUrl,timestamp:Date.now()});
+}
+async function saveImageCache(url,blob){
+if(!db)return;
+try{
+const transaction=db.transaction(['images'],'readwrite');
+const store=transaction.objectStore('images');
+store.put({url:url,blob:blob,timestamp:Date.now()});
+}catch(error){
+console.error('Error guardando imagen:',error);
+}
+}
+async function getImageCache(url){
+if(!db)return null;
+return new Promise((resolve)=>{
+const transaction=db.transaction(['images'],'readonly');
+const store=transaction.objectStore('images');
+const request=store.get(url);
+request.onsuccess=(e)=>{
+if(e.target.result){
+resolve(e.target.result.blob);
+}else{
+resolve(null);
+}
+};
+request.onerror=()=>resolve(null);
+});
 }
 function extractPattern(url){
 const parts=url.split('/');
@@ -241,6 +270,16 @@ img.src=url;
 async function loadSequence(urlPattern){
 const status=document.getElementById('status');
 const downloadSection=document.getElementById('downloadSection');
+status.innerHTML='<span class="loading">Verificando caché local</span>';
+const cachedImages=await checkCachedSequence(urlPattern);
+if(cachedImages&&cachedImages.length>0){
+allImages=cachedImages.map(img=>img.url);
+currentImageUrl=allImages[0];
+showPreview();
+status.textContent=`✅ ${allImages.length} imagen${allImages.length!==1?'es':''} cargada${allImages.length!==1?'s':''} desde caché`;
+downloadSection.style.display='block';
+return;
+}
 status.innerHTML='<span class="loading">Detectando formato de numeración</span>';
 let format='normal';
 let paddingLength=2;
@@ -259,7 +298,13 @@ while(consecutiveFailures<maxConsecutiveFailures){
 const numStr=format==='padded'?String(currentNum).padStart(paddingLength,'0'):String(currentNum);
 const imageUrl=urlPattern.replace('{N}',numStr);
 const exists=await checkImageExists(imageUrl);
-if(exists){allImages.push(imageUrl);consecutiveFailures=0;}else{consecutiveFailures++;}
+if(exists){
+allImages.push(imageUrl);
+await cacheImage(imageUrl);
+consecutiveFailures=0;
+}else{
+consecutiveFailures++;
+}
 currentNum++;
 status.innerHTML=`<span class="loading">Cargadas: ${allImages.length} imágenes</span>`;
 await new Promise(resolve=>setTimeout(resolve,100));
@@ -271,6 +316,7 @@ status.textContent=`✅ ${allImages.length} imagen${allImages.length!==1?'es':''
 downloadSection.style.display='block';
 }else{status.textContent='❌ No se encontraron imágenes';}
 }
+}
 function checkImageExists(url){
 return new Promise((resolve)=>{
 const img=new Image();
@@ -278,6 +324,47 @@ img.onload=()=>resolve(true);
 img.onerror=()=>resolve(false);
 img.src=url;
 setTimeout(()=>resolve(false),5000);
+});
+}
+async function cacheImage(url){
+try{
+const response=await fetch(url);
+const blob=await response.blob();
+await saveImageCache(url,blob);
+}catch(error){
+console.error('Error cacheando imagen:',error);
+}
+}
+async function checkCachedSequence(urlPattern){
+if(!db)return null;
+return new Promise((resolve)=>{
+const transaction=db.transaction(['images'],'readonly');
+const store=transaction.objectStore('images');
+const request=store.openCursor();
+const cachedImages=[];
+request.onsuccess=(e)=>{
+const cursor=e.target.result;
+if(cursor){
+const url=cursor.value.url;
+const regex=urlPattern.replace('{N}','(\\d+)');
+if(url.match(new RegExp(regex))){
+cachedImages.push({url:url,blob:cursor.value.blob});
+}
+cursor.continue();
+}else{
+if(cachedImages.length>0){
+cachedImages.sort((a,b)=>{
+const numA=parseInt(a.url.match(/\d+/)[0]);
+const numB=parseInt(b.url.match(/\d+/)[0]);
+return numA-numB;
+});
+resolve(cachedImages);
+}else{
+resolve(null);
+}
+}
+};
+request.onerror=()=>resolve(null);
 });
 }
 function showPreview(){
