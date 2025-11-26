@@ -502,6 +502,7 @@
         let urlDatabase = [];
         let consecutiveErrors = 0;
         let shouldStopLoading = false;
+        let totalImagesToLoad = 0;
 
         const urlInput = document.getElementById('urlInput');
         const showImagesSwitch = document.getElementById('showImagesSwitch');
@@ -809,10 +810,11 @@
             consecutiveErrors = 0;
             shouldStopLoading = false;
 
-            const total = end - start + 1;
+            totalImagesToLoad = end - start + 1;
             let loaded = 0;
             let errors = 0;
             let successfulPadding = null;
+            let checkedCount = 0;
 
             for (let i = start; i <= end; i++) {
                 if (shouldStopLoading) {
@@ -821,6 +823,7 @@
 
                 const numLabel = padNumber(i, detectedPadding);
                 const loadResult = await tryLoadImageWithFormats(template, i);
+                checkedCount++;
                 
                 if (loadResult.success) {
                     consecutiveErrors = 0;
@@ -855,7 +858,7 @@
                             format: loadResult.format
                         });
                         wrapper.onclick = () => openModal(imageIndex);
-                        updateProgress(loaded, errors, total);
+                        updateProgress(loaded, errors, checkedCount);
                     };
                     
                     img.src = loadResult.url;
@@ -878,29 +881,26 @@
                         break;
                     }
                 }
+                
+                updateProgress(loaded, errors, checkedCount);
             }
             
             if (!shouldStopLoading && loaded === 0) {
                 document.getElementById('detected').textContent = '❌ No se pudieron cargar imágenes. Verifica la URL.';
                 document.getElementById('progressBar').style.display = 'none';
+            } else if (!shouldStopLoading && loaded > 0) {
+                document.getElementById('progressBar').style.display = 'none';
+                document.getElementById('downloadBtn').disabled = false;
+                const template = document.getElementById('urlInput').value.trim();
+                addUrlToDatabase(template, detectedPadding, detectedFormat, false);
             }
         }
 
-        function updateProgress(loaded, errors, total) {
-            const done = loaded + errors;
-            const perc = Math.round((done / total) * 100);
+        function updateProgress(loaded, errors, checkedCount) {
+            const perc = Math.round((checkedCount / totalImagesToLoad) * 100);
             document.getElementById('progressFill').style.width = perc + '%';
             document.getElementById('progressFill').textContent = perc + '%';
-            document.getElementById('stats').textContent = `✅ ${loaded} cargadas`;
-            
-            if (done === total || shouldStopLoading) {
-                document.getElementById('progressBar').style.display = 'none';
-                if (loaded > 0) {
-                    document.getElementById('downloadBtn').disabled = false;
-                    const template = document.getElementById('urlInput').value.trim();
-                    addUrlToDatabase(template, detectedPadding, detectedFormat, false);
-                }
-            }
+            document.getElementById('stats').textContent = `✅ ${loaded} cargadas | ⏳ ${checkedCount}/${totalImagesToLoad} revisadas`;
         }
 
         function openModal(index) {
