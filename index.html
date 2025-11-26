@@ -426,6 +426,11 @@
             z-index: 1001;
             display: flex;
             gap: 10px;
+            opacity: 0.15;
+            transition: opacity 0.3s;
+        }
+        .nav-controls:hover {
+            opacity: 1;
         }
         .nav-controls.left {
             left: 10px;
@@ -436,13 +441,13 @@
             flex-direction: column;
         }
         .nav-btn {
-            background: rgba(0,0,0,0.6);
+            background: rgba(0,0,0,0.5);
             color: white;
-            border: 2px solid rgba(255,255,255,0.3);
-            width: 45px;
-            height: 45px;
+            border: 2px solid rgba(255,255,255,0.2);
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
-            font-size: 18px;
+            font-size: 16px;
             cursor: pointer;
             transition: all 0.3s;
             display: flex;
@@ -452,7 +457,7 @@
         .nav-btn:hover {
             background: rgba(0,0,0,0.8);
             border-color: rgba(255,255,255,0.5);
-            transform: scale(1.1);
+            transform: scale(1.15);
         }
         .nav-btn:active {
             transform: scale(0.95);
@@ -470,14 +475,6 @@
                     <textarea id="urlInput" placeholder="Ejemplo: https://sitio.com/imagen_01.jpg&#10;Se detectará y cargará automáticamente"></textarea>
                 </div>
                 <div class="url-history" id="urlHistory" style="display: none;"></div>
-            </div>
-
-            <div class="info">
-                💡 Pega una URL con numeración secuencial. Se detectará automáticamente y cargará las imágenes.
-            </div>
-
-            <div class="info">
-                📁 <strong>Consejo:</strong> Crea una carpeta "Todoscomic" en tu carpeta Descargas. Al descargar, el navegador te preguntará dónde guardar el archivo y podrás elegir esa carpeta.
             </div>
 
             <div class="warning" style="display: none;" id="cloudflareWarning">
