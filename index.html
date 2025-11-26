@@ -1,1386 +1,381 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Descargador de Imágenes</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            color: #e0e0e0;
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-        .header {
-            background: linear-gradient(135deg, #2a2a4a 0%, #1e1e3f 100%);
-            border-radius: 16px;
-            padding: 40px;
-            margin-bottom: 30px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-        }
-        h1 {
-            text-align: center;
-            margin-bottom: 40px;
-            color: #fff;
-            font-size: 32px;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.3);
-        }
-        .input-group {
-            margin-bottom: 25px;
-        }
-        label {
-            display: block;
-            margin-bottom: 12px;
-            color: #fff;
-            font-size: 18px;
-            font-weight: 600;
-        }
-        .url-input-container {
-            position: relative;
-        }
-        #urlInput {
-            width: 100%;
-            background: #1a1a2e;
-            border: 3px solid #4a4a7a;
-            color: #fff;
-            padding: 20px;
-            border-radius: 12px;
-            font-size: 16px;
-            font-family: 'Courier New', monospace;
-            min-height: 140px;
-            resize: vertical;
-            line-height: 1.6;
-            transition: all 0.3s;
-        }
-        #urlInput:focus {
-            outline: none;
-            border-color: #6a6aaa;
-            box-shadow: 0 0 20px rgba(106, 106, 170, 0.3);
-        }
-        .url-history {
-            margin-top: 15px;
-            max-height: 150px;
-            overflow-y: auto;
-            background: #1a1a2e;
-            border: 2px solid #3a3a6a;
-            border-radius: 8px;
-            padding: 10px;
-        }
-        .url-history-item {
-            padding: 8px 12px;
-            margin: 5px 0;
-            background: #2a2a4a;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-size: 13px;
-            color: #aaf;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .url-history-item:hover {
-            background: #3a3a5a;
-            color: #fff;
-        }
-        .url-history-delete {
-            background: #5a3a3a;
-            border: none;
-            color: #fff;
-            padding: 2px 8px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-        }
-        .url-history-delete:hover {
-            background: #7a4a4a;
-        }
-        .switch-container {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: #1a1a2e;
-            padding: 20px;
-            border-radius: 12px;
-            border: 3px solid #4a4a7a;
-            margin-bottom: 25px;
-        }
-        .switch-label {
-            color: #fff;
-            font-size: 18px;
-            font-weight: 600;
-        }
-        .switch {
-            position: relative;
-            display: inline-block;
-            width: 70px;
-            height: 34px;
-        }
-        .switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #4a4a4a;
-            transition: .4s;
-            border-radius: 34px;
-        }
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 26px;
-            width: 26px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
-        }
-        input:checked + .slider {
-            background: linear-gradient(135deg, #2a5a2a 0%, #3a7a3a 100%);
-        }
-        input:checked + .slider:before {
-            transform: translateX(36px);
-        }
-        input[type="number"] {
-            width: 100%;
-            background: #1a1a2e;
-            border: 3px solid #4a4a7a;
-            color: #fff;
-            padding: 16px;
-            border-radius: 8px;
-            font-size: 18px;
-            font-weight: bold;
-            text-align: center;
-            transition: all 0.3s;
-        }
-        input[type="number"]:focus {
-            outline: none;
-            border-color: #6a6aaa;
-            box-shadow: 0 0 20px rgba(106, 106, 170, 0.3);
-        }
-        .range-group {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 25px;
-        }
-        .detected {
-            background: linear-gradient(135deg, #1a3a1a 0%, #2a4a2a 100%);
-            padding: 16px;
-            border-radius: 8px;
-            margin-bottom: 25px;
-            font-size: 15px;
-            color: #4aff4a;
-            border: 2px solid #3a5a3a;
-        }
-        .info {
-            background: linear-gradient(135deg, #1a2a3a 0%, #2a3a4a 100%);
-            padding: 16px;
-            border-radius: 8px;
-            margin-bottom: 25px;
-            font-size: 14px;
-            color: #4af;
-            border: 2px solid #2a4a5a;
-        }
-        .warning {
-            background: linear-gradient(135deg, #3a2a1a 0%, #4a3a2a 100%);
-            padding: 16px;
-            border-radius: 8px;
-            margin-bottom: 25px;
-            font-size: 14px;
-            color: #ffaa44;
-            border: 2px solid #5a4a3a;
-        }
-        .gallery {
-            background: linear-gradient(135deg, #2a2a4a 0%, #1e1e3f 100%);
-            border-radius: 16px;
-            padding: 30px;
-            margin-bottom: 20px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-        }
-        .gallery-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 25px;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-        .stats {
-            color: #fff;
-            font-size: 16px;
-            font-weight: bold;
-        }
-        .download-zip-btn {
-            background: linear-gradient(135deg, #2a4a7a 0%, #3a5a8a 100%);
-            padding: 14px 28px;
-            font-size: 16px;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: all 0.3s;
-        }
-        .download-zip-btn:hover {
-            box-shadow: 0 6px 20px rgba(58, 90, 138, 0.4);
-            transform: translateY(-2px);
-        }
-        .download-zip-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-        .image-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 0;
-        }
-        .image-item {
-            position: relative;
-            background: #1a1a2e;
-            overflow: hidden;
-            border: 1px solid #2a2a4a;
-            transition: all 0.3s;
-        }
-        .image-item:hover {
-            border-color: #4a4a7a;
-            box-shadow: 0 0 20px rgba(74, 74, 122, 0.5);
-            z-index: 10;
-        }
-        .image-number {
-            position: absolute;
-            bottom: 8px;
-            right: 8px;
-            color: #fff;
-            font-size: 16px;
-            font-weight: bold;
-            z-index: 5;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
-        }
-        .image-wrapper {
-            position: relative;
-            aspect-ratio: 1;
-            cursor: pointer;
-            overflow: hidden;
-        }
-        .image-wrapper:hover img {
-            transform: scale(1.05);
-        }
-        .image-wrapper img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transition: transform 0.4s;
-        }
-        .empty-state {
-            text-align: center;
-            color: #888;
-            padding: 80px 20px;
-            font-size: 18px;
-        }
-        .progress-bar {
-            background: #1a1a2e;
-            border-radius: 8px;
-            overflow: hidden;
-            margin-bottom: 25px;
-            height: 40px;
-            border: 2px solid #2a2a4a;
-        }
-        .progress-fill {
-            background: linear-gradient(90deg, #2a5a2a, #3a7a3a, #4a9a4a);
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 14px;
-            font-weight: bold;
-            transition: width 0.3s;
-        }
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: #000;
-            z-index: 1000;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-        .modal.active {
-            display: block;
-        }
-        .modal.swipe-mode {
-            overflow-x: auto;
-            overflow-y: hidden;
-            white-space: nowrap;
-            scroll-snap-type: x mandatory;
-            scroll-behavior: smooth;
-        }
-        .modal.scroll-mode {
-            overflow-y: auto;
-            overflow-x: hidden;
-        }
-        .modal-image-container {
-            width: 100%;
-            height: 100vh;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            scroll-snap-align: start;
-        }
-        .modal.swipe-mode .modal-image-container {
-            display: inline-flex;
-            width: 100vw;
-            height: 100vh;
-        }
-        .modal.scroll-mode .modal-image-container {
-            display: flex;
-            width: 100%;
-            height: auto;
-            min-height: auto;
-        }
-        .modal-image-container img {
-            max-width: 100%;
-            max-height: 100vh;
-            object-fit: contain;
-            display: block;
-        }
-        .modal.scroll-mode .modal-image-container img {
-            width: 100%;
-            height: auto;
-            max-height: none;
-            display: block;
-        }
-        .modal-close {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: rgba(255,255,255,0.2);
-            color: white;
-            border: none;
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            font-size: 28px;
-            cursor: pointer;
-            transition: all 0.3s;
-            z-index: 1001;
-        }
-        .modal-close:hover {
-            background: rgba(255,255,255,0.3);
-        }
-        .modal-counter {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.7);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 20px;
-            font-size: 16px;
-            font-weight: bold;
-            z-index: 1001;
-        }
-        .mode-toggle {
-            position: fixed;
-            bottom: 70px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.7);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 20px;
-            font-size: 14px;
-            cursor: pointer;
-            z-index: 1001;
-            border: 2px solid rgba(255,255,255,0.3);
-        }
-        .nav-controls {
-            position: fixed;
-            top: 50%;
-            transform: translateY(-50%);
-            z-index: 1001;
-            display: flex;
-            gap: 10px;
-            opacity: 0.15;
-            transition: opacity 0.3s;
-        }
-        .nav-controls:hover {
-            opacity: 1;
-        }
-        .nav-controls.left {
-            left: 10px;
-            flex-direction: column;
-        }
-        .nav-controls.right {
-            right: 10px;
-            flex-direction: column;
-        }
-        .nav-btn {
-            background: rgba(0,0,0,0.5);
-            color: white;
-            border: 2px solid rgba(255,255,255,0.2);
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            font-size: 16px;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .nav-btn:hover {
-            background: rgba(0,0,0,0.8);
-            border-color: rgba(255,255,255,0.5);
-            transform: scale(1.15);
-        }
-        .nav-btn:active {
-            transform: scale(0.95);
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cargador de Imágenes</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;padding:20px;}
+.container{max-width:1200px;margin:0 auto;}
+.header{text-align:center;color:white;margin-bottom:30px;}
+.header h1{font-size:2.5em;margin-bottom:10px;text-shadow:2px 2px 4px rgba(0,0,0,0.3);}
+.search-box{background:white;border-radius:15px;padding:30px;box-shadow:0 10px 30px rgba(0,0,0,0.3);margin-bottom:30px;}
+.input-group{display:flex;gap:10px;margin-bottom:15px;}
+input[type="text"]{flex:1;padding:15px;border:2px solid #e0e0e0;border-radius:10px;font-size:16px;transition:border-color 0.3s;}
+input[type="text"]:focus{outline:none;border-color:#667eea;}
+button{padding:15px 30px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;border:none;border-radius:10px;font-size:16px;font-weight:bold;cursor:pointer;transition:transform 0.2s,box-shadow 0.2s;}
+button:hover{transform:translateY(-2px);box-shadow:0 5px 15px rgba(0,0,0,0.3);}
+button:active{transform:translateY(0);}
+button:disabled{opacity:0.6;cursor:not-allowed;}
+.info{color:#666;font-size:14px;text-align:center;}
+.status{text-align:center;color:white;font-size:18px;margin-bottom:20px;min-height:30px;}
+.download-section{text-align:center;margin-bottom:20px;}
+.download-btn{margin:0 5px;}
+.switch-container{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:15px;padding-top:15px;border-top:1px solid #e0e0e0;}
+.switch-label{color:#666;font-size:14px;font-weight:500;}
+.switch{position:relative;display:inline-block;width:50px;height:26px;}
+.switch input{opacity:0;width:0;height:0;}
+.slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background-color:#ccc;transition:0.4s;border-radius:26px;}
+.slider:before{position:absolute;content:"";height:18px;width:18px;left:4px;bottom:4px;background-color:white;transition:0.4s;border-radius:50%;}
+input:checked+.slider{background-color:#667eea;}
+input:checked+.slider:before{transform:translateX(24px);}
+.gallery{display:flex;flex-direction:column;gap:0;max-width:800px;margin:0 auto;}
+.image-card{background:white;overflow:hidden;position:relative;cursor:pointer;transition:opacity 0.3s;}
+.image-card.preview{box-shadow:0 5px 15px rgba(0,0,0,0.2);border-radius:10px;margin-bottom:20px;}
+.image-card.preview:hover{opacity:0.95;}
+.image-card img{width:100%;display:block;}
+.image-number{position:absolute;bottom:5px;right:5px;color:white;font-size:18px;font-weight:bold;text-shadow:2px 2px 4px rgba(0,0,0,0.8);opacity:0.7;}
+.click-hint{position:absolute;bottom:15px;left:50%;transform:translateX(-50%);background:rgba(102,126,234,0.95);color:white;padding:12px 30px;border-radius:25px;font-size:16px;font-weight:bold;box-shadow:0 4px 10px rgba(0,0,0,0.3);pointer-events:none;}
+.fullscreen-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:1000;overflow-y:auto;}
+.fullscreen-overlay.active{display:block;}
+.fullscreen-close{position:fixed;top:20px;right:20px;background:rgba(255,255,255,0.2);color:white;border:none;padding:15px 25px;border-radius:10px;font-size:20px;cursor:pointer;z-index:1001;transition:background 0.3s;}
+.fullscreen-close:hover{background:rgba(255,255,255,0.3);}
+.fullscreen-gallery{display:flex;flex-direction:column;gap:0;padding:20px 0;}
+.fullscreen-image{width:100%;display:block;}
+.loading{text-align:center;color:white;font-size:20px;}
+.loading::after{content:'...';animation:dots 1.5s steps(4,end) infinite;}
+@keyframes dots{0%,20%{content:'.';}40%{content:'..';}60%,100%{content:'...';}}
+</style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>📥 Descargador de Imágenes Secuenciales</h1>
-
-            <div class="input-group">
-                <label>🔗 Pega tu URL aquí</label>
-                <div class="url-input-container">
-                    <textarea id="urlInput" placeholder="Ejemplo: https://sitio.com/imagen_01.jpg&#10;Se detectará y cargará automáticamente"></textarea>
-                </div>
-                <div class="url-history" id="urlHistory" style="display: none;"></div>
-            </div>
-
-            <div class="warning" style="display: none;" id="cloudflareWarning">
-                ⚠️ Sitio con Cloudflare - Puede tener limitaciones
-            </div>
-
-            <div id="detected" class="detected" style="display: none;"></div>
-
-            <div class="switch-container">
-                <span class="switch-label">🖼️ Mostrar Imágenes</span>
-                <label class="switch">
-                    <input type="checkbox" id="showImagesSwitch" checked>
-                    <span class="slider"></span>
-                </label>
-            </div>
-
-            <div class="switch-container">
-                <span class="switch-label">🔓 Usar Proxy CORS (para sitios bloqueados)</span>
-                <label class="switch">
-                    <input type="checkbox" id="proxySwitch">
-                    <span class="slider"></span>
-                </label>
-            </div>
-
-            <div class="range-group">
-                <div class="input-group">
-                    <label>📍 Desde</label>
-                    <input type="number" id="startNum" value="1" min="0">
-                </div>
-                <div class="input-group">
-                    <label>📍 Hasta</label>
-                    <input type="number" id="endNum" value="50" min="0">
-                </div>
-            </div>
-        </div>
-
-        <div class="gallery" id="gallery" style="display: none;">
-            <div id="progressBar" class="progress-bar" style="display: none;">
-                <div class="progress-fill" id="progressFill" style="width: 0%">0%</div>
-            </div>
-            <div class="gallery-header">
-                <div class="stats" id="stats">Cargando...</div>
-                <button class="download-zip-btn" id="downloadBtn" onclick="downloadZip()" disabled>
-                    📦 Descargar Todas (ZIP)
-                </button>
-            </div>
-            <div class="image-grid" id="imageGrid"></div>
-        </div>
-
-        <div class="empty-state" id="emptyState">
-            📋 Pega una URL con numeración secuencial para comenzar
-        </div>
-    </div>
-
-    <div class="modal scroll-mode" id="modal">
-        <button class="modal-close" onclick="closeModal()">×</button>
-        <div class="mode-toggle" id="modeToggle" onclick="toggleViewMode()">
-            🔄 Cambiar a deslizar
-        </div>
-        <div class="modal-counter" id="modalCounter"></div>
-        
-        <div class="nav-controls left" id="navControlsLeft">
-            <button class="nav-btn" onclick="goToStart()" title="Ir al inicio">⏮️</button>
-            <button class="nav-btn" onclick="goToPrevious()" title="Anterior">◀️</button>
-        </div>
-        
-        <div class="nav-controls right" id="navControlsRight">
-            <button class="nav-btn" onclick="goToNext()" title="Siguiente">▶️</button>
-            <button class="nav-btn" onclick="goToEnd()" title="Ir al final">⏭️</button>
-        </div>
-        
-        <div id="modalContent"></div>
-    </div>
-
-    <script>
-        let loadedImages = [];
-        let detectedPadding = 0;
-        let detectedFormat = 'normal';
-        let autoLoadTimeout = null;
-        let switchState = {};
-        let currentModalIndex = 0;
-        let isSwipeMode = false;
-        let detectedDimensionPattern = null;
-        let skipDimensionCheck = false;
-        let urlDatabase = [];
-        let consecutiveErrors = 0;
-        let shouldStopLoading = false;
-        let totalImagesToLoad = 0;
-        let useProxy = false;
-        let currentProxyIndex = 0;
-        const corsProxies = [
-            'https://corsproxy.io/?',
-            'https://api.allorigins.win/raw?url=',
-            'https://cors-anywhere.herokuapp.com/',
-            'https://thingproxy.freeboard.io/fetch/'
-        ];
-
-        const urlInput = document.getElementById('urlInput');
-        const showImagesSwitch = document.getElementById('showImagesSwitch');
-        const proxySwitch = document.getElementById('proxySwitch');
-        const startInput = document.getElementById('startNum');
-        const endInput = document.getElementById('endNum');
-
-        proxySwitch.addEventListener('change', function() {
-            useProxy = this.checked;
-            localStorage.setItem('useProxy', JSON.stringify(useProxy));
-            if (useProxy) {
-                document.getElementById('detected').textContent = '🔓 Proxy CORS activado - Puede cargar sitios bloqueados';
-                document.getElementById('detected').style.display = 'block';
-            }
-        });
-
-        const savedProxy = JSON.parse(localStorage.getItem('useProxy') || 'false');
-        proxySwitch.checked = savedProxy;
-        useProxy = savedProxy;
-
-        function loadUrlDatabase() {
-            const stored = localStorage.getItem('urlDatabase');
-            if (stored) {
-                try {
-                    urlDatabase = JSON.parse(stored);
-                } catch (e) {
-                    urlDatabase = [];
-                }
-            }
-        }
-
-        function saveUrlDatabase() {
-            localStorage.setItem('urlDatabase', JSON.stringify(urlDatabase));
-        }
-
-        function addUrlToDatabase(url, paddingLength, format, hasErrors = false) {
-            if (hasErrors) return;
-            
-            const baseUrl = url.replace(/{N}/g, '');
-            const exists = urlDatabase.some(item => item.baseUrl === baseUrl);
-            
-            if (!exists) {
-                urlDatabase.unshift({ baseUrl, paddingLength, format, fullUrl: url, timestamp: Date.now() });
-                if (urlDatabase.length > 15) {
-                    urlDatabase.pop();
-                }
-                saveUrlDatabase();
-                displayUrlHistory();
-            }
-        }
-
-        function displayUrlHistory() {
-            const historyEl = document.getElementById('urlHistory');
-            
-            if (urlDatabase.length === 0) {
-                historyEl.style.display = 'none';
-                return;
-            }
-
-            historyEl.innerHTML = '<div style="padding: 8px; font-size: 12px; color: #888; font-weight: bold;">📜 URLs Guardadas:</div>';
-            historyEl.style.display = 'block';
-
-            urlDatabase.forEach((item, idx) => {
-                const div = document.createElement('div');
-                div.className = 'url-history-item';
-                
-                const hasCF = item.fullUrl.includes('chochox.com') || item.fullUrl.includes('cloudflare');
-                const cfLabel = hasCF ? '⚠️ CF' : '';
-                
-                const text = document.createElement('span');
-                text.style.flex = '1';
-                text.style.display = 'flex';
-                text.style.alignItems = 'center';
-                text.style.gap = '8px';
-                
-                const urlText = document.createElement('span');
-                urlText.textContent = item.baseUrl.substring(0, 55) + (item.baseUrl.length > 55 ? '...' : '');
-                
-                if (cfLabel) {
-                    const cfSpan = document.createElement('span');
-                    cfSpan.textContent = cfLabel;
-                    cfSpan.style.fontSize = '11px';
-                    cfSpan.style.color = '#ffaa44';
-                    text.appendChild(cfSpan);
-                }
-                
-                text.appendChild(urlText);
-                text.style.cursor = 'pointer';
-                text.onclick = () => {
-                    urlInput.value = item.fullUrl;
-                    document.getElementById('startNum').value = 1;
-                    document.getElementById('endNum').value = 50;
-                    detectedPadding = item.paddingLength;
-                    detectedFormat = item.format;
-                    autoLoadTimeout = setTimeout(() => {
-                        loadImages();
-                    }, 500);
-                };
-
-                const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'url-history-delete';
-                deleteBtn.textContent = '🗑️';
-                deleteBtn.title = 'Eliminar';
-                deleteBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    urlDatabase.splice(idx, 1);
-                    saveUrlDatabase();
-                    displayUrlHistory();
-                };
-
-                div.appendChild(text);
-                div.appendChild(deleteBtn);
-                historyEl.appendChild(div);
-            });
-        }
-
-        loadUrlDatabase();
-        displayUrlHistory();
-
-        startInput.addEventListener('change', () => {
-            if (document.getElementById('urlInput').value.includes('{N}')) {
-                loadImages();
-            }
-        });
-
-        endInput.addEventListener('change', () => {
-            if (document.getElementById('urlInput').value.includes('{N}')) {
-                loadImages();
-            }
-        });
-
-        const savedState = window.switchState || JSON.parse(localStorage.getItem('showImagesState') || 'true');
-        showImagesSwitch.checked = savedState;
-        window.switchState = savedState;
-
-        const savedViewMode = localStorage.getItem('viewMode') || 'scroll';
-        isSwipeMode = savedViewMode === 'swipe';
-
-        showImagesSwitch.addEventListener('change', function() {
-            const isChecked = this.checked;
-            localStorage.setItem('showImagesState', JSON.stringify(isChecked));
-            window.switchState = isChecked;
-            
-            const imageItems = document.querySelectorAll('.image-item');
-            imageItems.forEach(item => {
-                if (isChecked) {
-                    item.style.display = '';
-                } else {
-                    item.style.display = 'none';
-                }
-            });
-        });
-
-        function checkCloudflareProtection(url) {
-            const protectedDomains = ['chochox.com', 'cloudflare'];
-            const hasProtection = protectedDomains.some(domain => url.includes(domain));
-            
-            const warningEl = document.getElementById('cloudflareWarning');
-            if (hasProtection) {
-                warningEl.style.display = 'block';
-            } else {
-                warningEl.style.display = 'none';
-            }
-            
-            return hasProtection;
-        }
-
-        urlInput.addEventListener('input', e => {
-            const url = e.target.value.trim();
-            
-            if (autoLoadTimeout) {
-                clearTimeout(autoLoadTimeout);
-            }
-
-            if (!url) {
-                document.getElementById('detected').style.display = 'none';
-                document.getElementById('cloudflareWarning').style.display = 'none';
-                displayUrlHistory();
-                return;
-            }
-
-            checkCloudflareProtection(url);
-
-            autoLoadTimeout = setTimeout(() => {
-                autoDetectAndLoad();
-            }, 800);
-        });
-
-        function autoDetectAndLoad() {
-            let url = document.getElementById('urlInput').value.trim();
-            
-            if (!url) return;
-
-            if (url.includes('{N}')) {
-                document.getElementById('detected').textContent = '✅ URL detectada con {N} - Buscando formato...';
-                document.getElementById('detected').style.display = 'block';
-                loadImages();
-                return;
-            }
-
-            const patterns = [
-                { regex: /\/(\d+)_/g, desc: 'número antes de guión bajo' },
-                { regex: /_(\d+)\./g, desc: 'número después de guión bajo' },
-                { regex: /-(\d+)-\d+x\d+/g, desc: 'número antes de dimensiones' },
-                { regex: /-(\d+)-/g, desc: 'número entre guiones' },
-                { regex: /-(\d+)\./g, desc: 'número después de guión' },
-                { regex: /\/(\d+)\./g, desc: 'número antes de extensión' },
-                { regex: /(\d+)/g, desc: 'último número encontrado' }
-            ];
-
-            let found = false;
-            
-            for (let pattern of patterns) {
-                const matches = [...url.matchAll(pattern.regex)];
-                if (matches.length > 0) {
-                    const lastMatch = matches[matches.length - 1];
-                    const number = lastMatch[1];
-                    detectedPadding = number.length;
-                    detectedFormat = number.length === 2 ? 'padded' : 'normal';
-                    
-                    const fullMatch = lastMatch[0];
-                    const index = url.lastIndexOf(fullMatch);
-                    const numberIndex = url.indexOf(number, index);
-                    
-                    const beforeNumber = url.substring(0, numberIndex);
-                    const afterNumber = url.substring(numberIndex + number.length);
-                    const cleanAfter = afterNumber.replace(/-\d+x\d+/g, '');
-                    
-                    url = beforeNumber + '{N}' + cleanAfter;
-                    document.getElementById('urlInput').value = url;
-                    
-                    document.getElementById('detected').textContent = `✅ Detectado: ${number} (${pattern.desc}) - ${detectedPadding} dígitos`;
-                    document.getElementById('detected').style.display = 'block';
-                    
-                    found = true;
-                    loadImages();
-                    break;
-                }
-            }
-
-            if (!found) {
-                document.getElementById('detected').textContent = '❌ No se detectó numeración';
-                document.getElementById('detected').style.display = 'block';
-            }
-        }
-
-        function padNumber(num, padding) {
-            return String(num).padStart(padding, '0');
-        }
-
-        function generateURL(template, number, format) {
-            const paddedNumber = padNumber(number, format);
-            return template.replace(/{N}/g, paddedNumber);
-        }
-
-        async function tryLoadImageWithFormats(baseTemplate, number) {
-            if (skipDimensionCheck && detectedDimensionPattern !== null) {
-                const paddedNum = padNumber(number, detectedPadding);
-                const url = baseTemplate.replace(/{N}/g, paddedNum + detectedDimensionPattern);
-                const result = await tryLoadImage(url);
-                
-                if (result.success) {
-                    return { ...result, format: 'cached', padding: detectedPadding };
-                }
-            }
-
-            const dimensionVariants = [
-                '',
-                '-724x1024',
-                '-768x1244',
-                '-800x1200',
-                '-1024x768',
-                '-640x960',
-                '-750x1334',
-                '-1080x1920',
-                '-600x900',
-                '-700x1000'
-            ];
-
-            const formats = [
-                { padding: detectedPadding, name: 'original' },
-                { padding: 2, name: 'padded02' },
-                { padding: 3, name: 'padded03' },
-                { padding: 1, name: 'single' }
-            ];
-
-            const promises = [];
-            
-            for (let format of formats) {
-                for (let dimension of dimensionVariants) {
-                    const paddedNum = padNumber(number, format.padding);
-                    const urlWithDimension = baseTemplate.replace(/{N}/g, paddedNum + dimension);
-                    promises.push(
-                        tryLoadImage(urlWithDimension).then(result => ({
-                            ...result,
-                            format: format.name,
-                            padding: format.padding,
-                            dimension: dimension
-                        }))
-                    );
-                }
-            }
-
-            const results = await Promise.all(promises);
-            const successful = results.find(r => r.success);
-            
-            if (successful) {
-                if (detectedPadding !== successful.padding) {
-                    detectedPadding = successful.padding;
-                    document.getElementById('detected').textContent = `✅ Formato ajustado: ${successful.padding} dígitos`;
-                }
-                
-                if (!skipDimensionCheck) {
-                    detectedDimensionPattern = successful.dimension;
-                    skipDimensionCheck = true;
-                    
-                    if (detectedDimensionPattern === '') {
-                        document.getElementById('detected').textContent = `✅ Sin dimensiones en URL - Carga rápida activada`;
-                    } else {
-                        document.getElementById('detected').textContent = `✅ Patrón detectado: ${detectedDimensionPattern} - Carga rápida activada`;
-                    }
-                }
-                
-                return successful;
-            }
-
-            return { success: false, url: '', format: 'failed', padding: detectedPadding };
-        }
-
-        async function tryLoadImage(url) {
-            return new Promise((resolve) => {
-                const img = new Image();
-                img.crossOrigin = 'anonymous';
-                
-                let finalUrl = url;
-                if (useProxy) {
-                    finalUrl = corsProxies[currentProxyIndex] + encodeURIComponent(url);
-                }
-                
-                const timeout = setTimeout(() => {
-                    img.src = '';
-                    if (useProxy && currentProxyIndex < corsProxies.length - 1) {
-                        currentProxyIndex++;
-                        console.log(`Cambiando a proxy ${currentProxyIndex + 1}`);
-                    }
-                    resolve({ success: false, url: url });
-                }, 600);
-
-                img.onload = () => {
-                    clearTimeout(timeout);
-                    resolve({ success: true, url: url });
-                };
-                
-                img.onerror = () => {
-                    clearTimeout(timeout);
-                    if (useProxy && currentProxyIndex < corsProxies.length - 1) {
-                        currentProxyIndex++;
-                        console.log(`Proxy falló, cambiando a proxy ${currentProxyIndex + 1}`);
-                    }
-                    resolve({ success: false, url: url });
-                };
-                
-                img.src = finalUrl;
-            });
-        }
-
-        async function loadImages() {
-            const template = document.getElementById('urlInput').value.trim();
-            const start = parseInt(document.getElementById('startNum').value);
-            const end = parseInt(document.getElementById('endNum').value);
-            const showImages = showImagesSwitch.checked;
-
-            if (!template) return;
-            if (!template.includes('{N}')) return;
-            if (start > end) return;
-            
-            if (end - start > 200) {
-                alert('❌ Máximo 200 imágenes por carga');
-                return;
-            }
-
-            document.getElementById('emptyState').style.display = 'none';
-            document.getElementById('gallery').style.display = 'block';
-            document.getElementById('progressBar').style.display = 'block';
-            document.getElementById('downloadBtn').disabled = true;
-
-            const grid = document.getElementById('imageGrid');
-            grid.innerHTML = '';
-            loadedImages = [];
-            consecutiveErrors = 0;
-            shouldStopLoading = false;
-            detectedDimensionPattern = null;
-            skipDimensionCheck = false;
-            currentProxyIndex = 0;
-
-            totalImagesToLoad = end - start + 1;
-            let loaded = 0;
-            let errors = 0;
-            let successfulPadding = null;
-            let checkedCount = 0;
-            let lastSuccessfulNumber = start - 1;
-
-            for (let i = start; i <= end; i++) {
-                if (shouldStopLoading) {
-                    break;
-                }
-
-                const numLabel = padNumber(i, detectedPadding);
-                const loadResult = await tryLoadImageWithFormats(template, i);
-                checkedCount++;
-                
-                if (loadResult.success) {
-                    consecutiveErrors = 0;
-                    lastSuccessfulNumber = i;
-                    
-                    if (successfulPadding === null) {
-                        successfulPadding = loadResult.padding;
-                        detectedPadding = loadResult.padding;
-                        document.getElementById('detected').textContent = `✅ Formato detectado: ${padNumber(i, loadResult.padding)} (${loadResult.padding} dígitos)`;
-                    }
-
-                    const item = document.createElement('div');
-                    item.className = 'image-item';
-                    if (!showImages) {
-                        item.style.display = 'none';
-                    }
-
-                    const label = document.createElement('div');
-                    label.className = 'image-number';
-                    label.textContent = numLabel;
-
-                    const wrapper = document.createElement('div');
-                    wrapper.className = 'image-wrapper';
-
-                    const img = document.createElement('img');
-                    img.crossOrigin = 'anonymous';
-                    
-                    img.onload = () => {
-                        loaded++;
-                        const imageIndex = loadedImages.length;
-                        let finalUrl = loadResult.url;
-                        if (useProxy) {
-                            finalUrl = corsProxies[currentProxyIndex] + encodeURIComponent(loadResult.url);
-                        }
-                        loadedImages.push({ 
-                            url: finalUrl, 
-                            originalUrl: loadResult.url,
-                            number: i,
-                            format: loadResult.format
-                        });
-                        wrapper.onclick = () => openModal(imageIndex);
-                        updateProgress(loaded, errors, checkedCount);
-                    };
-                    
-                    let displayUrl = loadResult.url;
-                    if (useProxy) {
-                        displayUrl = corsProxies[currentProxyIndex] + encodeURIComponent(loadResult.url);
-                    }
-                    img.src = displayUrl;
-                    wrapper.appendChild(img);
-                    item.appendChild(label);
-                    item.appendChild(wrapper);
-                    grid.appendChild(item);
-                } else {
-                    errors++;
-                    consecutiveErrors++;
-                    
-                    if (consecutiveErrors >= 2) {
-                        shouldStopLoading = true;
-                        const nextNumber = lastSuccessfulNumber + 1;
-                        const missingUrl = generateURL(template, nextNumber, detectedPadding);
-                        document.getElementById('detected').textContent = `✅ Carga completada: ${loaded} imágenes (${padNumber(start, detectedPadding)} - ${padNumber(lastSuccessfulNumber, detectedPadding)})`;
-                        document.getElementById('progressBar').style.display = 'none';
-                        if (loaded > 0) {
-                            document.getElementById('downloadBtn').disabled = false;
-                            addUrlToDatabase(template, detectedPadding, detectedFormat, false);
-                        }
-                        break;
-                    }
-                }
-                
-                updateProgress(loaded, errors, checkedCount);
-            }
-            
-            if (!shouldStopLoading && loaded === 0) {
-                document.getElementById('detected').textContent = '❌ No se pudieron cargar imágenes. Verifica la URL.';
-                document.getElementById('progressBar').style.display = 'none';
-            } else if (!shouldStopLoading && loaded > 0) {
-                document.getElementById('progressBar').style.display = 'none';
-                document.getElementById('downloadBtn').disabled = false;
-                document.getElementById('detected').textContent = `✅ Carga completada: ${loaded} imágenes encontradas`;
-                const template = document.getElementById('urlInput').value.trim();
-                addUrlToDatabase(template, detectedPadding, detectedFormat, false);
-            }
-        }
-
-        function updateProgress(loaded, errors, checkedCount) {
-            const perc = Math.round((checkedCount / totalImagesToLoad) * 100);
-            document.getElementById('progressFill').style.width = perc + '%';
-            document.getElementById('progressFill').textContent = perc + '%';
-            document.getElementById('stats').textContent = `✅ ${loaded} cargadas | ⏳ ${checkedCount}/${totalImagesToLoad} revisadas`;
-        }
-
-        function openModal(index) {
-            currentModalIndex = index;
-            renderModalImages();
-            document.getElementById('modal').classList.add('active');
-            updateModalCounter();
-            
-            if (isSwipeMode) {
-                setTimeout(() => {
-                    const modal = document.getElementById('modal');
-                    const targetContainer = modal.children[5 + index];
-                    if (targetContainer) {
-                        targetContainer.scrollIntoView({ behavior: 'instant', block: 'start', inline: 'start' });
-                    }
-                }, 100);
-            }
-        }
-
-        function renderModalImages() {
-            const modalContent = document.getElementById('modalContent');
-            const modal = document.getElementById('modal');
-            
-            modalContent.innerHTML = '';
-            
-            loadedImages.forEach((img, idx) => {
-                const container = document.createElement('div');
-                container.className = 'modal-image-container';
-                
-                const image = document.createElement('img');
-                image.crossOrigin = 'anonymous';
-                image.src = img.url;
-                image.alt = `Imagen ${idx + 1}`;
-                
-                container.appendChild(image);
-                modalContent.appendChild(container);
-            });
-            
-            if (isSwipeMode) {
-                modal.classList.remove('scroll-mode');
-                modal.classList.add('swipe-mode');
-                modal.addEventListener('scroll', handleSwipeScroll);
-            } else {
-                modal.classList.remove('swipe-mode');
-                modal.classList.add('scroll-mode');
-                modal.removeEventListener('scroll', handleSwipeScroll);
-            }
-        }
-
-        function handleSwipeScroll() {
-            const modal = document.getElementById('modal');
-            const scrollLeft = modal.scrollLeft;
-            const containerWidth = window.innerWidth;
-            const newIndex = Math.round(scrollLeft / containerWidth);
-            
-            if (newIndex !== currentModalIndex) {
-                currentModalIndex = newIndex;
-                updateModalCounter();
-            }
-        }
-
-        function updateModalCounter() {
-            document.getElementById('modalCounter').textContent = `${currentModalIndex + 1} / ${loadedImages.length}`;
-        }
-
-        function toggleViewMode() {
-            isSwipeMode = !isSwipeMode;
-            localStorage.setItem('viewMode', isSwipeMode ? 'swipe' : 'scroll');
-            
-            const modeToggle = document.getElementById('modeToggle');
-            modeToggle.textContent = isSwipeMode ? '🔄 Cambiar a río' : '🔄 Cambiar a deslizar';
-            
-            renderModalImages();
-            
-            if (isSwipeMode) {
-                setTimeout(() => {
-                    const modal = document.getElementById('modal');
-                    const targetContainer = modal.children[5 + currentModalIndex];
-                    if (targetContainer) {
-                        targetContainer.scrollIntoView({ behavior: 'instant', block: 'start', inline: 'start' });
-                    }
-                }, 100);
-            }
-        }
-
-        function closeModal() {
-            document.getElementById('modal').classList.remove('active');
-        }
-
-        function goToStart() {
-            currentModalIndex = 0;
-            scrollToCurrentImage();
-        }
-
-        function goToEnd() {
-            currentModalIndex = loadedImages.length - 1;
-            scrollToCurrentImage();
-        }
-
-        function goToPrevious() {
-            if (currentModalIndex > 0) {
-                currentModalIndex--;
-                scrollToCurrentImage();
-            }
-        }
-
-        function goToNext() {
-            if (currentModalIndex < loadedImages.length - 1) {
-                currentModalIndex++;
-                scrollToCurrentImage();
-            }
-        }
-
-        function scrollToCurrentImage() {
-            const modal = document.getElementById('modal');
-            updateModalCounter();
-            
-            if (isSwipeMode) {
-                const targetContainer = modal.children[5 + currentModalIndex];
-                if (targetContainer) {
-                    targetContainer.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'start' });
-                }
-            } else {
-                const targetContainer = modal.querySelector('#modalContent').children[currentModalIndex];
-                if (targetContainer) {
-                    targetContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            }
-        }
-
-        function extractComicName(url) {
-            try {
-                const urlObj = new URL(url);
-                const pathname = urlObj.pathname;
-                
-                let cleaned = pathname
-                    .replace(/\.(jpg|jpeg|png|webp|gif)$/i, '')
-                    .replace(/-\d+x\d+/g, '')
-                    .replace(/{N}/g, '')
-                    .replace(/[_\/\\]/g, '-');
-                
-                const parts = cleaned.split('/').filter(p => p);
-                let filename = parts[parts.length - 1] || '';
-                
-                if (/^\d+$/.test(filename) && parts.length > 1) {
-                    filename = parts[parts.length - 2] || filename;
-                }
-                
-                filename = filename
-                    .replace(/-+\d+$/g, '')
-                    .replace(/^-+|-+$/g, '')
-                    .replace(/-+/g, '-');
-                
-                const words = filename.split('-').filter(word => {
-                    return word.length > 2 && !/^\d+$/.test(word);
-                });
-                
-                if (words.length > 0) {
-                    return words.slice(0, 5).join('-');
-                }
-                
-                return '';
-            } catch (e) {
-                return '';
-            }
-        }
-
-        async function fetchPageTitle(url) {
-            try {
-                const baseUrl = new URL(url).origin;
-                let fetchUrl = baseUrl;
-                if (useProxy) {
-                    fetchUrl = corsProxies[currentProxyIndex] + encodeURIComponent(baseUrl);
-                }
-                
-                const response = await fetch(fetchUrl);
-                const html = await response.text();
-                
-                const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-                if (titleMatch && titleMatch[1]) {
-                    let title = titleMatch[1]
-                        .replace(/[^\w\s-]/g, '')
-                        .replace(/\s+/g, '-')
-                        .substring(0, 50);
-                    return title;
-                }
-                
-                const metaMatch = html.match(/<meta[^>]*property="og:title"[^>]*content="([^"]+)"/i);
-                if (metaMatch && metaMatch[1]) {
-                    let title = metaMatch[1]
-                        .replace(/[^\w\s-]/g, '')
-                        .replace(/\s+/g, '-')
-                        .substring(0, 50);
-                    return title;
-                }
-            } catch (e) {
-                console.log('No se pudo obtener título de la página');
-            }
-            return '';
-        }
-
-        async function getZipFilename() {
-            const template = document.getElementById('urlInput').value.trim();
-            
-            let comicName = extractComicName(template);
-            
-            if (!comicName || comicName.length < 3) {
-                const btn = document.getElementById('downloadBtn');
-                btn.textContent = '🔍 Detectando nombre...';
-                
-                const pageTitle = await fetchPageTitle(template);
-                if (pageTitle && pageTitle.length > 3) {
-                    comicName = pageTitle;
-                }
-            }
-            
-            if (!comicName || comicName.length < 3) {
-                const timestamp = new Date().toISOString().slice(0, 10);
-                comicName = `comic-${timestamp}`;
-            }
-            
-            comicName = comicName
-                .replace(/[^\w\s-]/g, '')
-                .replace(/\s+/g, '-')
-                .replace(/-+/g, '-')
-                .replace(/^-+|-+$/g, '')
-                .substring(0, 60);
-            
-            return `${comicName}.zip`;
-        }
-
-        async function downloadZip() {
-            if (!loadedImages.length) return;
-            
-            const btn = document.getElementById('downloadBtn');
-            btn.disabled = true;
-            btn.textContent = '⏳ Preparando ZIP...';
-
-            const zip = new JSZip();
-            const folder = zip.folder('imagenes');
-
-            for (let i = 0; i < loadedImages.length; i++) {
-                const img = loadedImages[i];
-                btn.textContent = `⬇️ Descargando ${i + 1}/${loadedImages.length}`;
-                
-                try {
-                    const urlToFetch = img.originalUrl || img.url;
-                    let fetchUrl = urlToFetch;
-                    if (useProxy) {
-                        fetchUrl = corsProxies[currentProxyIndex] + encodeURIComponent(urlToFetch);
-                    }
-                    
-                    let res = await fetch(fetchUrl);
-                    const blob = await res.blob();
-                    const ext = urlToFetch.split('.').pop().split('?')[0];
-                    const name = `imagen_${padNumber(img.number, detectedPadding)}.${ext}`;
-                    folder.file(name, blob);
-                } catch (e) {
-                    console.error('Error descargando:', img.url, e);
-                }
-            }
-
-            btn.textContent = '📦 Generando ZIP...';
-            const content = await zip.generateAsync({ type: 'blob' });
-            
-            const filename = await getZipFilename();
-            
-            if ('showSaveFilePicker' in window) {
-                try {
-                    const suggestedName = filename;
-                    const opts = {
-                        suggestedName: suggestedName,
-                        types: [{
-                            description: 'Archivo ZIP',
-                            accept: {'application/zip': ['.zip']},
-                        }],
-                    };
-                    
-                    const handle = await window.showSaveFilePicker(opts);
-                    const writable = await handle.createWritable();
-                    await writable.write(content);
-                    await writable.close();
-                    
-                    btn.textContent = '✅ ¡Guardado!';
-                } catch (e) {
-                    if (e.name !== 'AbortError') {
-                        console.error('Error al guardar:', e);
-                        fallbackDownload(content, filename);
-                    } else {
-                        btn.textContent = '❌ Cancelado';
-                    }
-                }
-            } else {
-                fallbackDownload(content, filename);
-            }
-
-            setTimeout(() => {
-                btn.textContent = '📦 Descargar Todas (ZIP)';
-                btn.disabled = false;
-            }, 2000);
-        }
-
-        function fallbackDownload(content, filename) {
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(content);
-            a.download = filename;
-            a.click();
-            document.getElementById('downloadBtn').textContent = '✅ ¡Listo!';
-        }
-    </script>
+<div class="container">
+<div class="header">
+<h1>🖼️ Cargador de Imágenes</h1>
+<p>Carga imágenes individuales o secuencias automáticas</p>
+</div>
+<div class="search-box">
+<div class="input-group">
+<input type="text" id="urlInput" placeholder="Ingresa la URL (usa {N} para secuencias: ejemplo.com/img/{N}.jpg)">
+<button id="loadBtn" onclick="loadImages()">Cargar</button>
+</div>
+<div class="info">💡 Usa {N} para cargar secuencias automáticas. Detecta formatos 1,2,3... o 01,02,03...</div>
+<div class="switch-container">
+<span class="switch-label">🌐 Usar CORS Proxy</span>
+<label class="switch">
+<input type="checkbox" id="corsToggle" onchange="toggleCorsProxy()">
+<span class="slider"></span>
+</label>
+</div>
+<div class="switch-container">
+<span class="switch-label">🔄 Auto-detectar patrones</span>
+<label class="switch">
+<input type="checkbox" id="autoPatternToggle" onchange="toggleAutoPattern()">
+<span class="slider"></span>
+</label>
+</div>
+</div>
+<div class="status" id="status"></div>
+<div class="download-section" id="downloadSection" style="display:none;">
+<button class="download-btn" onclick="downloadAll()">📥 Descargar ZIP</button>
+</div>
+<div class="gallery" id="gallery"></div>
+</div>
+<div class="fullscreen-overlay" id="fullscreenOverlay">
+<button class="fullscreen-close" onclick="closeFullscreen()">✕ Cerrar</button>
+<div class="fullscreen-gallery" id="fullscreenGallery"></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+let isLoading=false;
+let allImages=[];
+let showingAll=false;
+let currentImageUrl='';
+let useCorsProxy=false;
+let useAutoPattern=false;
+const corsProxies=['https://corsproxy.io/?','https://api.allorigins.win/raw?url=',''];
+let currentProxyIndex=0;
+let db;
+function initDB(){
+const request=indexedDB.open('ImageLoaderDB',2);
+request.onerror=()=>console.error('Error abriendo IndexedDB');
+request.onsuccess=(e)=>{
+db=e.target.result;
+loadSettings();
+};
+request.onupgradeneeded=(e)=>{
+db=e.target.result;
+if(!db.objectStoreNames.contains('settings')){
+db.createObjectStore('settings',{keyPath:'key'});
+}
+if(!db.objectStoreNames.contains('patterns')){
+db.createObjectStore('patterns',{keyPath:'pattern'});
+}
+};
+}
+function loadSettings(){
+if(!db)return;
+const transaction=db.transaction(['settings'],'readonly');
+const store=transaction.objectStore('settings');
+const corsRequest=store.get('useCorsProxy');
+corsRequest.onsuccess=(e)=>{
+if(e.target.result){
+useCorsProxy=e.target.result.value;
+document.getElementById('corsToggle').checked=useCorsProxy;
+}
+};
+const patternRequest=store.get('useAutoPattern');
+patternRequest.onsuccess=(e)=>{
+if(e.target.result){
+useAutoPattern=e.target.result.value;
+document.getElementById('autoPatternToggle').checked=useAutoPattern;
+}
+};
+}
+function saveSettings(){
+if(!db)return;
+const transaction=db.transaction(['settings'],'readwrite');
+const store=transaction.objectStore('settings');
+store.put({key:'useCorsProxy',value:useCorsProxy});
+store.put({key:'useAutoPattern',value:useAutoPattern});
+}
+function toggleCorsProxy(){
+useCorsProxy=document.getElementById('corsToggle').checked;
+saveSettings();
+}
+function toggleAutoPattern(){
+useAutoPattern=document.getElementById('autoPatternToggle').checked;
+saveSettings();
+}
+function savePattern(patternUrl){
+if(!db||!patternUrl.includes('{N}'))return;
+const transaction=db.transaction(['patterns'],'readwrite');
+const store=transaction.objectStore('patterns');
+store.put({pattern:patternUrl,timestamp:Date.now()});
+}
+function extractPattern(url){
+const parts=url.split('/');
+const lastPart=parts[parts.length-1];
+const numberMatch=lastPart.match(/\d+/);
+if(!numberMatch)return null;
+const basePath=parts.slice(0,-1).join('/');
+const fileName=lastPart.replace(/\d+/,'{N}');
+return `${basePath}/${fileName}`;
+}
+async function findMatchingPattern(url){
+if(!db||!useAutoPattern)return null;
+return new Promise((resolve)=>{
+const transaction=db.transaction(['patterns'],'readonly');
+const store=transaction.objectStore('patterns');
+const request=store.openCursor();
+const patterns=[];
+request.onsuccess=(e)=>{
+const cursor=e.target.result;
+if(cursor){
+patterns.push(cursor.value.pattern);
+cursor.continue();
+}else{
+for(const pattern of patterns){
+const regex=pattern.replace('{N}','(\\d+)');
+const match=url.match(new RegExp(regex));
+if(match){
+resolve(pattern);
+return;
+}
+}
+resolve(null);
+}
+};
+request.onerror=()=>resolve(null);
+});
+}
+async function loadImages(){
+if(isLoading)return;
+let url=document.getElementById('urlInput').value.trim();
+const status=document.getElementById('status');
+const gallery=document.getElementById('gallery');
+const loadBtn=document.getElementById('loadBtn');
+const downloadSection=document.getElementById('downloadSection');
+if(!url){status.textContent='⚠️ Por favor ingresa una URL';return;}
+if(!url.includes('{N}')){
+const matchedPattern=await findMatchingPattern(url);
+if(matchedPattern){
+url=matchedPattern;
+document.getElementById('urlInput').value=url;
+status.textContent='✨ Patrón detectado automáticamente!';
+await new Promise(resolve=>setTimeout(resolve,1000));
+}
+}
+isLoading=true;
+loadBtn.disabled=true;
+gallery.innerHTML='';
+status.textContent='';
+allImages=[];
+showingAll=false;
+downloadSection.style.display='none';
+if(url.includes('{N}')){
+savePattern(url);
+await loadSequence(url);
+}else{
+await loadSingleImage(url);
+}
+isLoading=false;
+loadBtn.disabled=false;
+}
+async function loadSingleImage(url){
+const status=document.getElementById('status');
+const gallery=document.getElementById('gallery');
+const downloadSection=document.getElementById('downloadSection');
+status.innerHTML='<span class="loading">Cargando imagen</span>';
+const img=new Image();
+img.onload=()=>{
+allImages=[url];
+currentImageUrl=url;
+showPreview();
+status.textContent='✅ Imagen cargada exitosamente';
+downloadSection.style.display='block';
+};
+img.onerror=()=>{status.textContent='❌ Error al cargar la imagen';};
+img.src=url;
+}
+async function loadSequence(urlPattern){
+const status=document.getElementById('status');
+const downloadSection=document.getElementById('downloadSection');
+status.innerHTML='<span class="loading">Detectando formato de numeración</span>';
+let format='normal';
+let paddingLength=2;
+const testUrl1=urlPattern.replace('{N}','1');
+const exists1=await checkImageExists(testUrl1);
+if(!exists1){
+const testUrl01=urlPattern.replace('{N}','01');
+const exists01=await checkImageExists(testUrl01);
+if(exists01){format='padded';}else{status.textContent='❌ No se encontró la primera imagen (probé con 1 y 01)';return;}
+}
+status.innerHTML=`<span class="loading">Cargando imágenes (formato: ${format==='normal'?'1,2,3...':'01,02,03...'})</span>`;
+let currentNum=1;
+let consecutiveFailures=0;
+const maxConsecutiveFailures=3;
+while(consecutiveFailures<maxConsecutiveFailures){
+const numStr=format==='padded'?String(currentNum).padStart(paddingLength,'0'):String(currentNum);
+const imageUrl=urlPattern.replace('{N}',numStr);
+const exists=await checkImageExists(imageUrl);
+if(exists){allImages.push(imageUrl);consecutiveFailures=0;}else{consecutiveFailures++;}
+currentNum++;
+status.innerHTML=`<span class="loading">Cargadas: ${allImages.length} imágenes</span>`;
+await new Promise(resolve=>setTimeout(resolve,100));
+}
+if(allImages.length>0){
+currentImageUrl=allImages[0];
+showPreview();
+status.textContent=`✅ ${allImages.length} imagen${allImages.length!==1?'es':''} cargada${allImages.length!==1?'s':''} exitosamente`;
+downloadSection.style.display='block';
+}else{status.textContent='❌ No se encontraron imágenes';}
+}
+function checkImageExists(url){
+return new Promise((resolve)=>{
+const img=new Image();
+img.onload=()=>resolve(true);
+img.onerror=()=>resolve(false);
+img.src=url;
+setTimeout(()=>resolve(false),5000);
+});
+}
+function showPreview(){
+const gallery=document.getElementById('gallery');
+gallery.innerHTML='';
+if(allImages.length===0)return;
+const card=document.createElement('div');
+card.className='image-card preview';
+card.onclick=openFullscreen;
+card.innerHTML=`
+<img src="${allImages[0]}" alt="Imagen 1">
+<div class="image-number">1</div>
+${allImages.length>1?'<div class="click-hint">👆 Click para ver todas ('+allImages.length+')</div>':''}
+`;
+gallery.appendChild(card);
+showingAll=false;
+currentImageUrl=allImages[0];
+}
+function openFullscreen(){
+const overlay=document.getElementById('fullscreenOverlay');
+const fullscreenGallery=document.getElementById('fullscreenGallery');
+fullscreenGallery.innerHTML='';
+allImages.forEach((url,index)=>{
+const img=document.createElement('img');
+img.className='fullscreen-image';
+img.src=url;
+img.alt=`Imagen ${index+1}`;
+const container=document.createElement('div');
+container.style.position='relative';
+container.appendChild(img);
+const number=document.createElement('div');
+number.className='image-number';
+number.textContent=index+1;
+container.appendChild(number);
+fullscreenGallery.appendChild(container);
+});
+overlay.classList.add('active');
+document.body.style.overflow='hidden';
+}
+function closeFullscreen(){
+const overlay=document.getElementById('fullscreenOverlay');
+overlay.classList.remove('active');
+document.body.style.overflow='auto';
+}
+async function downloadAll(){
+if(allImages.length===0)return;
+const status=document.getElementById('status');
+status.innerHTML='<span class="loading">Preparando ZIP con '+allImages.length+' imágenes</span>';
+try{
+const zip=new JSZip();
+const folder=zip.folder('imagenes');
+for(let i=0;i<allImages.length;i++){
+status.innerHTML=`<span class="loading">Descargando imagen ${i+1} de ${allImages.length}</span>`;
+let downloadUrl=allImages[i];
+if(useCorsProxy){
+downloadUrl=await tryDownloadWithProxy(allImages[i]);
+if(!downloadUrl){
+console.error('Proxy falló para imagen',i+1);
+continue;
+}
+}
+const response=await fetch(downloadUrl);
+const blob=await response.blob();
+const ext=allImages[i].split('.').pop().split('?')[0];
+folder.file(`imagen_${i+1}.${ext}`,blob);
+await new Promise(resolve=>setTimeout(resolve,300));
+}
+status.innerHTML='<span class="loading">Generando archivo ZIP</span>';
+const zipBlob=await zip.generateAsync({type:'blob'});
+const link=document.createElement('a');
+link.href=URL.createObjectURL(zipBlob);
+link.download='imagenes.zip';
+document.body.appendChild(link);
+link.click();
+document.body.removeChild(link);
+URL.revokeObjectURL(link.href);
+status.textContent='✅ ZIP descargado exitosamente con '+allImages.length+' imágenes';
+}catch(error){
+console.error('Error creando ZIP:',error);
+status.textContent='❌ Error al crear el ZIP';
+}
+}
+async function tryDownloadWithProxy(url){
+for(let i=0;i<corsProxies.length;i++){
+try{
+const proxyUrl=corsProxies[i]+encodeURIComponent(url);
+const response=await fetch(proxyUrl);
+if(response.ok){
+return proxyUrl;
+}
+}catch(error){
+console.error(`Proxy ${i} falló:`,error);
+}
+}
+return null;
+}
+document.getElementById('urlInput').addEventListener('keypress',(e)=>{if(e.key==='Enter'){loadImages();}});
+initDB();
+</script>
 </body>
 </html>
