@@ -419,6 +419,44 @@
             z-index: 1001;
             border: 2px solid rgba(255,255,255,0.3);
         }
+        .nav-controls {
+            position: fixed;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 1001;
+            display: flex;
+            gap: 10px;
+        }
+        .nav-controls.left {
+            left: 10px;
+            flex-direction: column;
+        }
+        .nav-controls.right {
+            right: 10px;
+            flex-direction: column;
+        }
+        .nav-btn {
+            background: rgba(0,0,0,0.6);
+            color: white;
+            border: 2px solid rgba(255,255,255,0.3);
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .nav-btn:hover {
+            background: rgba(0,0,0,0.8);
+            border-color: rgba(255,255,255,0.5);
+            transform: scale(1.1);
+        }
+        .nav-btn:active {
+            transform: scale(0.95);
+        }
     </style>
 </head>
 <body>
@@ -436,6 +474,10 @@
 
             <div class="info">
                 💡 Pega una URL con numeración secuencial. Se detectará automáticamente y cargará las imágenes.
+            </div>
+
+            <div class="info">
+                📁 <strong>Consejo:</strong> Crea una carpeta "Todoscomic" en tu carpeta Descargas. Al descargar, el navegador te preguntará dónde guardar el archivo y podrás elegir esa carpeta.
             </div>
 
             <div class="warning" style="display: none;" id="cloudflareWarning">
@@ -496,6 +538,17 @@
             🔄 Cambiar a deslizar
         </div>
         <div class="modal-counter" id="modalCounter"></div>
+        
+        <div class="nav-controls left" id="navControlsLeft">
+            <button class="nav-btn" onclick="goToStart()" title="Ir al inicio">⏮️</button>
+            <button class="nav-btn" onclick="goToPrevious()" title="Anterior">◀️</button>
+        </div>
+        
+        <div class="nav-controls right" id="navControlsRight">
+            <button class="nav-btn" onclick="goToNext()" title="Siguiente">▶️</button>
+            <button class="nav-btn" onclick="goToEnd()" title="Ir al final">⏭️</button>
+        </div>
+        
         <div id="modalContent"></div>
     </div>
 
@@ -1013,7 +1066,7 @@
             if (isSwipeMode) {
                 setTimeout(() => {
                     const modal = document.getElementById('modal');
-                    const targetContainer = modal.children[3 + index];
+                    const targetContainer = modal.children[5 + index];
                     if (targetContainer) {
                         targetContainer.scrollIntoView({ behavior: 'instant', block: 'start', inline: 'start' });
                     }
@@ -1079,7 +1132,7 @@
             if (isSwipeMode) {
                 setTimeout(() => {
                     const modal = document.getElementById('modal');
-                    const targetContainer = modal.children[3 + currentModalIndex];
+                    const targetContainer = modal.children[5 + currentModalIndex];
                     if (targetContainer) {
                         targetContainer.scrollIntoView({ behavior: 'instant', block: 'start', inline: 'start' });
                     }
@@ -1089,6 +1142,145 @@
 
         function closeModal() {
             document.getElementById('modal').classList.remove('active');
+        }
+
+        function goToStart() {
+            currentModalIndex = 0;
+            scrollToCurrentImage();
+        }
+
+        function goToEnd() {
+            currentModalIndex = loadedImages.length - 1;
+            scrollToCurrentImage();
+        }
+
+        function goToPrevious() {
+            if (currentModalIndex > 0) {
+                currentModalIndex--;
+                scrollToCurrentImage();
+            }
+        }
+
+        function goToNext() {
+            if (currentModalIndex < loadedImages.length - 1) {
+                currentModalIndex++;
+                scrollToCurrentImage();
+            }
+        }
+
+        function scrollToCurrentImage() {
+            const modal = document.getElementById('modal');
+            updateModalCounter();
+            
+            if (isSwipeMode) {
+                const targetContainer = modal.children[5 + currentModalIndex];
+                if (targetContainer) {
+                    targetContainer.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'start' });
+                }
+            } else {
+                const targetContainer = modal.querySelector('#modalContent').children[currentModalIndex];
+                if (targetContainer) {
+                    targetContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+        }
+
+        function extractComicName(url) {
+            try {
+                const urlObj = new URL(url);
+                const pathname = urlObj.pathname;
+                
+                let cleaned = pathname
+                    .replace(/\.(jpg|jpeg|png|webp|gif)$/i, '')
+                    .replace(/-\d+x\d+/g, '')
+                    .replace(/{N}/g, '')
+                    .replace(/[_\/\\]/g, '-');
+                
+                const parts = cleaned.split('/').filter(p => p);
+                let filename = parts[parts.length - 1] || '';
+                
+                if (/^\d+$/.test(filename) && parts.length > 1) {
+                    filename = parts[parts.length - 2] || filename;
+                }
+                
+                filename = filename
+                    .replace(/-+\d+$/g, '')
+                    .replace(/^-+|-+$/g, '')
+                    .replace(/-+/g, '-');
+                
+                const words = filename.split('-').filter(word => {
+                    return word.length > 2 && !/^\d+$/.test(word);
+                });
+                
+                if (words.length > 0) {
+                    return words.slice(0, 5).join('-');
+                }
+                
+                return '';
+            } catch (e) {
+                return '';
+            }
+        }
+
+        async function fetchPageTitle(url) {
+            try {
+                const baseUrl = new URL(url).origin;
+                const fetchUrl = useProxy ? corsProxies[0] + encodeURIComponent(baseUrl) : baseUrl;
+                
+                const response = await fetch(fetchUrl);
+                const html = await response.text();
+                
+                const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+                if (titleMatch && titleMatch[1]) {
+                    let title = titleMatch[1]
+                        .replace(/[^\w\s-]/g, '')
+                        .replace(/\s+/g, '-')
+                        .substring(0, 50);
+                    return title;
+                }
+                
+                const metaMatch = html.match(/<meta[^>]*property="og:title"[^>]*content="([^"]+)"/i);
+                if (metaMatch && metaMatch[1]) {
+                    let title = metaMatch[1]
+                        .replace(/[^\w\s-]/g, '')
+                        .replace(/\s+/g, '-')
+                        .substring(0, 50);
+                    return title;
+                }
+            } catch (e) {
+                console.log('No se pudo obtener título de la página');
+            }
+            return '';
+        }
+
+        async function getZipFilename() {
+            const template = document.getElementById('urlInput').value.trim();
+            
+            let comicName = extractComicName(template);
+            
+            if (!comicName || comicName.length < 3) {
+                const btn = document.getElementById('downloadBtn');
+                btn.textContent = '🔍 Detectando nombre...';
+                
+                const pageTitle = await fetchPageTitle(template);
+                if (pageTitle && pageTitle.length > 3) {
+                    comicName = pageTitle;
+                }
+            }
+            
+            if (!comicName || comicName.length < 3) {
+                const timestamp = new Date().toISOString().slice(0, 10);
+                comicName = `comic-${timestamp}`;
+            }
+            
+            comicName = comicName
+                .replace(/[^\w\s-]/g, '')
+                .replace(/\s+/g, '-')
+                .replace(/-+/g, '-')
+                .replace(/^-+|-+$/g, '')
+                .substring(0, 60);
+            
+            return `${comicName}.zip`;
         }
 
         async function downloadZip() {
@@ -1121,16 +1313,50 @@
 
             btn.textContent = '📦 Generando ZIP...';
             const content = await zip.generateAsync({ type: 'blob' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(content);
-            a.download = 'imagenes.zip';
-            a.click();
+            
+            const filename = await getZipFilename();
+            
+            if ('showSaveFilePicker' in window) {
+                try {
+                    const suggestedName = filename;
+                    const opts = {
+                        suggestedName: suggestedName,
+                        types: [{
+                            description: 'Archivo ZIP',
+                            accept: {'application/zip': ['.zip']},
+                        }],
+                    };
+                    
+                    const handle = await window.showSaveFilePicker(opts);
+                    const writable = await handle.createWritable();
+                    await writable.write(content);
+                    await writable.close();
+                    
+                    btn.textContent = '✅ ¡Guardado!';
+                } catch (e) {
+                    if (e.name !== 'AbortError') {
+                        console.error('Error al guardar:', e);
+                        fallbackDownload(content, filename);
+                    } else {
+                        btn.textContent = '❌ Cancelado';
+                    }
+                }
+            } else {
+                fallbackDownload(content, filename);
+            }
 
-            btn.textContent = '✅ ¡Listo!';
             setTimeout(() => {
                 btn.textContent = '📦 Descargar Todas (ZIP)';
                 btn.disabled = false;
             }, 2000);
+        }
+
+        function fallbackDownload(content, filename) {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(content);
+            a.download = filename;
+            a.click();
+            document.getElementById('downloadBtn').textContent = '✅ ¡Listo!';
         }
     </script>
 </body>
