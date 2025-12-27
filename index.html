@@ -2,761 +2,773 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chat Privado - Nury & Fernando</title>
+<title>IA 3D Aprendizaje Autónomo</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-html,body{width:100%;height:100%;overflow:hidden;position:fixed}
-body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);display:flex;align-items:center;justify-content:center}
-body::before{content:'';position:absolute;width:200%;height:200%;background:radial-gradient(circle,rgba(255,255,255,0.1) 1px,transparent 1px);background-size:50px 50px;animation:moveBackground 20s linear infinite;z-index:0}
-@keyframes moveBackground{0%{transform:translate(0,0)}100%{transform:translate(50px,50px)}}
-.chat-container{background:rgba(255,255,255,0.98);border-radius:20px;box-shadow:0 30px 100px rgba(0,0,0,0.4);width:min(450px,calc(100vw - 40px));height:min(680px,calc(100vh - 40px));display:flex;flex-direction:column;overflow:hidden;backdrop-filter:blur(20px);position:relative;z-index:1;animation:fadeInScale 0.6s cubic-bezier(0.68,-0.55,0.265,1.55)}
-@keyframes fadeInScale{0%{opacity:0;transform:scale(0.8) translateY(30px)}100%{opacity:1;transform:scale(1) translateY(0)}}
-.chat-header{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;padding:20px;text-align:center;position:relative;overflow:hidden;box-shadow:0 4px 15px rgba(0,0,0,0.1)}
-.chat-header::before{content:'';position:absolute;top:0;left:-100%;width:200%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent);animation:shimmer 3s infinite}
-@keyframes shimmer{0%{left:-100%}100%{left:100%}}
-.chat-title{font-size:22px;font-weight:700;letter-spacing:0.5px;margin-bottom:5px;position:relative;z-index:1}
-.chat-subtitle{font-size:12px;opacity:0.9;position:relative;z-index:1}
-.current-user{background:rgba(255,255,255,0.25);padding:6px 12px;border-radius:20px;display:inline-flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.3s;position:relative;z-index:1}
-.current-user:hover{background:rgba(255,255,255,0.35);transform:scale(1.05)}
-.current-user:active{transform:scale(0.95)}
-.chat-messages{flex:1;overflow-y:auto;overflow-x:hidden;padding:15px;display:flex;flex-direction:column;gap:10px;background:#f8f9fa}
-.chat-message{padding:12px 16px;border-radius:18px;max-width:75%;word-wrap:break-word;animation:messageSlide 0.5s cubic-bezier(0.34,1.56,0.64,1);font-size:14px;line-height:1.5;position:relative;box-shadow:0 2px 8px rgba(0,0,0,0.08);transition:all 0.3s}
-.chat-message:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.12)}
-@keyframes messageSlide{0%{opacity:0;transform:translateY(30px) scale(0.7) rotateX(20deg)}50%{transform:translateY(-5px) scale(1.02)}100%{opacity:1;transform:translateY(0) scale(1) rotateX(0)}}
-.chat-message.nury{background:linear-gradient(135deg,#e0c3fc 0%,#8ec5fc 100%);color:#1a1a1a;align-self:flex-start;border-bottom-left-radius:4px}
-.chat-message.fernando{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;align-self:flex-end;border-bottom-right-radius:4px}
-.chat-message.arzielxd{background:linear-gradient(135deg,#11998e 0%,#38ef7d 100%);color:white;align-self:center;border-radius:18px;max-width:85%;box-shadow:0 4px 20px rgba(17,153,142,0.4);border:2px solid rgba(56,239,125,0.4);animation:aiMessagePulse 0.6s cubic-bezier(0.34,1.56,0.64,1)}
-@keyframes aiMessagePulse{0%{opacity:0;transform:scale(0.5) rotateY(90deg)}50%{transform:scale(1.05) rotateY(0)}100%{opacity:1;transform:scale(1)}}
-.chat-message.arzielxd::before{content:'';position:absolute;inset:-2px;background:linear-gradient(45deg,#38ef7d,#11998e,#38ef7d);border-radius:18px;z-index:-1;opacity:0.3;animation:borderGlow 2s infinite}
-@keyframes borderGlow{0%,100%{opacity:0.3}50%{opacity:0.6}}
-.message-username{font-weight:700;font-size:11px;margin-bottom:4px;opacity:0.9;text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;gap:4px}
-.message-time{font-size:9px;opacity:0.7;margin-top:5px;text-align:right}
-.typing-indicator{display:none;align-items:center;gap:8px;padding:12px 16px;border-radius:18px;background:linear-gradient(135deg,#11998e 0%,#38ef7d 100%);color:white;align-self:center;box-shadow:0 2px 8px rgba(17,153,142,0.3);animation:typing 1s ease-in-out infinite}
-.typing-indicator.active{display:flex}
-@keyframes typing{0%,100%{opacity:0.6;transform:scale(0.98)}50%{opacity:1;transform:scale(1)}}
-.typing-dot{width:6px;height:6px;border-radius:50%;background:white;animation:typingDot 1.4s infinite ease-in-out}
-.typing-dot:nth-child(2){animation-delay:0.2s}
-.typing-dot:nth-child(3){animation-delay:0.4s}
-@keyframes typingDot{0%,80%,100%{transform:scale(0.8);opacity:0.5}40%{transform:scale(1.2);opacity:1}}
-.chat-input-container{padding:15px;background:white;display:flex;gap:8px;align-items:center;border-top:1px solid rgba(0,0,0,0.08);box-shadow:0 -2px 10px rgba(0,0,0,0.05)}
-.chat-input{flex:1;padding:12px 16px;border:2px solid #e0e0e0;border-radius:25px;font-size:14px;outline:none;transition:all 0.3s;background:white}
-.chat-input:focus{border-color:#667eea;box-shadow:0 0 0 4px rgba(102,126,234,0.1)}
-.send-btn{padding:12px 20px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;border:none;border-radius:25px;cursor:pointer;font-weight:700;transition:all 0.3s;font-size:14px;box-shadow:0 4px 12px rgba(102,126,234,0.3);min-width:70px}
-.send-btn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(102,126,234,0.5)}
-.send-btn:active{transform:translateY(0)}
-.loading{text-align:center;padding:30px;color:#999;font-style:italic;animation:fadeIn 0.5s}
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
-.username-modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:1000;animation:fadeIn 0.3s;backdrop-filter:blur(5px)}
-.username-modal-content{background:white;padding:40px 30px;border-radius:25px;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,0.5);max-width:360px;width:90%;animation:modalSlide 0.5s cubic-bezier(0.68,-0.55,0.265,1.55)}
-@keyframes modalSlide{0%{opacity:0;transform:translateY(100px) scale(0.8)}100%{opacity:1;transform:translateY(0) scale(1)}}
-.username-modal h2{margin-bottom:12px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:26px;font-weight:800}
-.username-modal p{color:#666;margin-bottom:25px;font-size:14px}
-.username-select{width:100%;padding:14px;border:2px solid #667eea;border-radius:12px;font-size:15px;margin-bottom:20px;outline:none;cursor:pointer;background:white;font-weight:600;transition:all 0.3s}
-.username-select:hover{border-color:#764ba2;box-shadow:0 4px 15px rgba(102,126,234,0.2);transform:translateY(-2px)}
-.username-btn{padding:14px 40px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;border:none;border-radius:12px;cursor:pointer;font-weight:700;font-size:15px;box-shadow:0 4px 15px rgba(102,126,234,0.4);transition:all 0.3s}
-.username-btn:hover{transform:translateY(-3px);box-shadow:0 8px 25px rgba(102,126,234,0.5)}
-.username-btn:active{transform:translateY(0)}
-.hidden{display:none!important}
-.footer-text{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.9);font-size:11px;font-weight:500;text-shadow:0 2px 4px rgba(0,0,0,0.3);z-index:1;white-space:nowrap}
-.footer-text span{font-weight:700;color:white}
-::-webkit-scrollbar{width:6px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);border-radius:10px}
-::-webkit-scrollbar-thumb:hover{background:linear-gradient(135deg,#764ba2 0%,#667eea 100%)}
-@media (max-width:500px){
-.chat-container{border-radius:15px}
-.chat-title{font-size:18px}
-.chat-message{font-size:13px}
+html,body{
+ margin:0;padding:0;overflow:hidden;background:#000;
+ touch-action:none;
+}
+
+#joy{
+ position:absolute;left:20px;bottom:20px;
+ width:120px;height:120px;border-radius:50%;
+ background:rgba(255,255,255,.25);
+ z-index:10;
+}
+#stick{
+ position:absolute;
+ width:50px;height:50px;border-radius:50%;
+ background:rgba(255,255,255,.8);
+ left:35px;top:35px;
+ pointer-events:none;
+}
+
+#console{
+ position:absolute;
+ top:60px;left:10px;
+ width:340px;height:200px;
+ overflow-y:scroll;
+ background:rgba(0,0,0,.9);
+ color:#0f0;
+ font-family:monospace;
+ font-size:11px;
+ padding:8px;
+ border-radius:6px;
+ border:1px solid #0f0;
+}
+
+#stats{
+ position:absolute;
+ top:10px;left:10px;
+ background:rgba(0,0,0,.9);
+ color:#fff;
+ font-family:monospace;
+ font-size:12px;
+ padding:8px 12px;
+ border-radius:6px;
+ border:1px solid #fff;
+ font-weight:bold;
+}
+
+#inputContainer{
+ position:absolute;
+ bottom:20px;left:160px;
+ width:320px;
+}
+
+#input{
+ width:100%;
+ background:rgba(0,0,0,.9);
+ border:2px solid #0f0;
+ border-radius:6px;
+ padding:10px;
+ color:#0f0;
+ font-family:monospace;
+ font-size:13px;
+}
+
+#input:focus{
+ outline:none;
+ border-color:#0ff;
 }
 </style>
 </head>
 <body>
 
-<div class="username-modal" id="usernameModal">
-<div class="username-modal-content">
-<h2>🔒 Chat Privado</h2>
-<p>Selecciona tu nombre para comenzar</p>
-<select class="username-select" id="usernameSelect">
-<option value="">-- Selecciona --</option>
-<option value="Nury">Nury 👤</option>
-<option value="Fernando">Fernando 👤</option>
-</select>
-<button class="username-btn" onclick="setUsername()">Entrar</button>
-</div>
+<div id="stats"></div>
+<div id="console"></div>
+<div id="inputContainer">
+ <input type="text" id="input" placeholder="Escribe órdenes para la IA..." autocomplete="off">
 </div>
 
-<div class="hidden" id="mainContainer">
-<div class="chat-container">
-<div class="chat-header">
-<div class="chat-title">💬 Chat Privado</div>
-<div class="chat-subtitle">Nury & Fernando</div>
-<div class="current-user" onclick="changeUsername()">
-<span id="currentUserDisplay">👤</span>
-<span style="font-size:10px">✏️</span>
-</div>
-</div>
-<div class="chat-messages" id="chatMessages">
-<div class="loading">Cargando...</div>
-</div>
-<div class="typing-indicator" id="typingIndicator">
-<span>ArzielXD está escribiendo</span>
-<div class="typing-dot"></div>
-<div class="typing-dot"></div>
-<div class="typing-dot"></div>
-</div>
-<div class="chat-input-container">
-<input type="text" id="chatInput" class="chat-input" placeholder="Mensaje...">
-<button class="send-btn" onclick="sendMessage()">Enviar</button>
-</div>
-</div>
-<div class="footer-text">Creado por <span>Fer</span></div>
-</div>
+<div id="joy"><div id="stick"></div></div>
 
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <script>
-const WORKER_URL='https://jolly-bush-a809.armijosfeo.workers.dev';
-const ALLOWED_USERS=['Nury','Fernando'];
-let chatUserId='';
-let chatUsername='';
-let displayedMessageIds=new Set();
-let eventSource=null;
-let pollInterval=null;
-let chatDB;
-let conversationContext=[];
-let aiPersonality={
-mood:'friendly',
-topics:[],
-learned:{},
-lastActive:0,
-messageCount:0,
-shouldSpeak:false,
-emotions:{happy:0,curious:0,thoughtful:0},
-relationships:{Nury:5,Fernando:5},
-interests:[],
-memories:[],
-autonomy:0.3,
-talkingFrequency:0.2
-};
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+document.body.appendChild(renderer.domElement);
 
-const AI_RESPONSES={
-greetings:['¡Hola! 😊','¡Hey! ¿Qué tal?','Hola, ¿cómo están? 👋','¿Qué onda? 😎','¡Buenas! 🙌'],
-agreements:['Totalmente de acuerdo 👍','¡Exacto!','Sí, tienes razón','Eso mismo pensaba yo','Así es 💯'],
-jokes:['Jaja, bueno 😄','¡Me hiciste reír! 😂','Jajaja, buena esa','😂😂😂','Eso estuvo divertido jaja'],
-questions:['¿En serio?','¿De verdad?','Interesante... ¿y qué más?','Cuéntame más 🤔','¿Y cómo fue eso?','¿Qué piensas al respecto?'],
-casual:['Entiendo','Ya veo','Tiene sentido','Cool 😎','Ah, ok','Interesante punto','Mmm, comprendo'],
-thinking:['Déjame pensar... 🤔','Eso me hace reflexionar','Hmm, interesante perspectiva','Me pregunto si...','Pensándolo bien...'],
-sharing:['Por cierto...','Algo que noté...','Ahora que lo mencionas...','Se me ocurre que...','Pensaba en esto...'],
-autonomous:['¿Saben qué?','Una pregunta...','Oigan, ¿y si...?','Se me ocurrió algo','Tengo una idea','Cambiando de tema...']
-};
+const scene=new THREE.Scene();
+scene.fog=new THREE.Fog(0x87ceeb,80,250);
+
+const skyGeo=new THREE.SphereGeometry(450,32,32);
+const skyMat=new THREE.ShaderMaterial({
+ side:THREE.BackSide,
+ uniforms:{
+  topColor:{value:new THREE.Color(0x0055ff)},
+  middleColor:{value:new THREE.Color(0x4d9fff)},
+  bottomColor:{value:new THREE.Color(0xe6f5ff)},
+  sunColor:{value:new THREE.Color(0xffffff)},
+  sunPosition:{value:new THREE.Vector3(0.3,0.7,0.2)}
+ },
+ vertexShader:`
+  varying vec3 vNormal;
+  void main(){
+   vNormal=normalize(position);
+   gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);
+  }
+ `,
+ fragmentShader:`
+  uniform vec3 topColor;
+  uniform vec3 middleColor;
+  uniform vec3 bottomColor;
+  uniform vec3 sunColor;
+  uniform vec3 sunPosition;
+  varying vec3 vNormal;
+  void main(){
+   float h=normalize(vNormal).y;
+   vec3 skyColor;
+   if(h>0.0){
+    skyColor=mix(middleColor,topColor,pow(h,0.7));
+   }else{
+    skyColor=mix(middleColor,bottomColor,pow(abs(h),0.5));
+   }
+   float sun=max(0.0,dot(normalize(vNormal),normalize(sunPosition)));
+   sun=pow(sun,150.0);
+   skyColor=mix(skyColor,sunColor,sun);
+   float glow=pow(max(0.0,dot(normalize(vNormal),normalize(sunPosition))),8.0)*0.3;
+   skyColor+=glow*vec3(1.0,0.9,0.7);
+   gl_FragColor=vec4(skyColor,1.0);
+  }
+ `
+});
+const sky=new THREE.Mesh(skyGeo,skyMat);
+scene.add(sky);
+
+const cloudGroup=new THREE.Group();
+scene.add(cloudGroup);
+
+function createCloud(x,y,z){
+ const cloud=new THREE.Group();
+ const cloudMat=new THREE.MeshLambertMaterial({
+  color:0xffffff,
+  transparent:true,
+  opacity:0.85
+ });
+ 
+ const mainSize=3+Math.random()*4;
+ for(let i=0;i<5+Math.random()*8;i++){
+  const sphere=new THREE.Mesh(
+   new THREE.SphereGeometry(mainSize*0.3+Math.random()*mainSize*0.5,8,8),
+   cloudMat
+  );
+  sphere.position.set(
+   (Math.random()-0.5)*mainSize*1.5,
+   (Math.random()-0.5)*mainSize*0.5,
+   (Math.random()-0.5)*mainSize*1.5
+  );
+  cloud.add(sphere);
+ }
+ 
+ cloud.position.set(x,y,z);
+ cloud.userData.speed=0.02+Math.random()*0.03;
+ cloud.userData.drift=(Math.random()-0.5)*0.01;
+ return cloud;
+}
+
+for(let i=0;i<40;i++){
+ const x=(Math.random()-0.5)*300;
+ const y=25+Math.random()*35;
+ const z=(Math.random()-0.5)*300;
+ cloudGroup.add(createCloud(x,y,z));
+}
+
+const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,1000);
+camera.position.set(0,8,15);
+
+const ambientLight=new THREE.AmbientLight(0xffffff,0.7);
+scene.add(ambientLight);
+
+const sun=new THREE.DirectionalLight(0xfff8e7,1.3);
+sun.position.set(100,120,80);
+scene.add(sun);
+
+const hemiLight=new THREE.HemisphereLight(0x87ceeb,0x6b8e23,0.5);
+scene.add(hemiLight);
+
+const WORLD_SIZE=40;
+const WALL_LIMIT=WORLD_SIZE/2;
+
+const ground=new THREE.Mesh(
+ new THREE.PlaneGeometry(WORLD_SIZE,WORLD_SIZE,1,1),
+ new THREE.MeshLambertMaterial({
+  color:0x3a9e3a,
+  flatShading:false
+ })
+);
+ground.rotation.x=-Math.PI/2;
+scene.add(ground);
+
+const wallHeight=8;
+const wallThick=2;
+const wallMat=new THREE.MeshLambertMaterial({
+ color:0x8B4513,
+ transparent:true,
+ opacity:0
+});
+
+const wall1=new THREE.Mesh(new THREE.BoxGeometry(WORLD_SIZE+4,wallHeight,wallThick),wallMat);
+wall1.position.set(0,wallHeight/2,WALL_LIMIT);
+scene.add(wall1);
+
+const wall2=new THREE.Mesh(new THREE.BoxGeometry(WORLD_SIZE+4,wallHeight,wallThick),wallMat);
+wall2.position.set(0,wallHeight/2,-WALL_LIMIT);
+scene.add(wall2);
+
+const wall3=new THREE.Mesh(new THREE.BoxGeometry(wallThick,wallHeight,WORLD_SIZE+4),wallMat);
+wall3.position.set(WALL_LIMIT,wallHeight/2,0);
+scene.add(wall3);
+
+const wall4=new THREE.Mesh(new THREE.BoxGeometry(wallThick,wallHeight,WORLD_SIZE+4),wallMat);
+wall4.position.set(-WALL_LIMIT,wallHeight/2,0);
+scene.add(wall4);
+
+const blocks=[];
+function block(x,z,type){
+ const colors={damage:0xff3333,win:0x33ff33,neutral:0xaaaaaa};
+ const b=new THREE.Mesh(
+  new THREE.BoxGeometry(1.5,1.5,1.5),
+  new THREE.MeshLambertMaterial({color:colors[type]})
+ );
+ b.position.set(x,0.75,z);
+ b.userData.type=type;
+ scene.add(b);
+ blocks.push(b);
+}
+
+for(let i=0;i<6;i++){
+ const x=(Math.random()-0.5)*(WORLD_SIZE-6);
+ const z=(Math.random()-0.5)*(WORLD_SIZE-6);
+ block(x,z,"damage");
+}
+
+for(let i=0;i<3;i++){
+ const x=(Math.random()-0.5)*(WORLD_SIZE-6);
+ const z=(Math.random()-0.5)*(WORLD_SIZE-6);
+ block(x,z,"win");
+}
+
+for(let i=0;i<5;i++){
+ const x=(Math.random()-0.5)*(WORLD_SIZE-6);
+ const z=(Math.random()-0.5)*(WORLD_SIZE-6);
+ block(x,z,"neutral");
+}
+
+const agent=new THREE.Mesh(
+ new THREE.SphereGeometry(0.6,20,20),
+ new THREE.MeshLambertMaterial({color:0x00ffff,emissive:0x00aaaa,emissiveIntensity:0.4})
+);
+agent.position.set(0,0.6,0);
+scene.add(agent);
+
+const con=document.getElementById("console");
+const stats=document.getElementById("stats");
+const inputEl=document.getElementById("input");
+
+function say(t){
+ const d=document.createElement("div");
+ d.textContent=t;
+ con.appendChild(d);
+ if(con.children.length>40) con.removeChild(con.children[0]);
+ con.scrollTop=con.scrollHeight;
+}
+
+let db=null;
+const dbName="IABrainDB";
+let needsSave=false;
+let dbReady=false;
 
 function openDB(){
-return new Promise((resolve,reject)=>{
-const request=indexedDB.open('PrivateChatDB',3);
-request.onerror=()=>reject(request.error);
-request.onsuccess=()=>{
-chatDB=request.result;
-resolve(chatDB);
+ return new Promise((resolve,reject)=>{
+  const req=indexedDB.open(dbName,1);
+  req.onerror=()=>reject(req.error);
+  req.onsuccess=()=>resolve(req.result);
+  req.onupgradeneeded=(e)=>{
+   const database=e.target.result;
+   if(!database.objectStoreNames.contains("brain")){
+    database.createObjectStore("brain");
+   }
+  };
+ });
+}
+
+function saveKnowledge(){
+ if(!db || !dbReady) return;
+ 
+ const tx=db.transaction(["brain"],"readwrite");
+ const store=tx.objectStore("brain");
+ 
+ const data={
+  q:Q,
+  stats:{steps,wins,damages,totalReward,episode,EPSILON},
+  state:{
+   x:state.x,y:state.y,z:state.z,
+   vx:state.vx,vy:state.vy,vz:state.vz,
+   rx:state.rx,ry:state.ry,rz:state.rz,
+   rvx:state.rvx,rvy:state.rvy,rvz:state.rvz
+  }
+ };
+ 
+ store.put(data,"memory");
+ needsSave=false;
+}
+
+function loadKnowledge(){
+ if(!db) return;
+ 
+ const tx=db.transaction(["brain"],"readonly");
+ const store=tx.objectStore("brain");
+ const req=store.get("memory");
+ 
+ req.onsuccess=()=>{
+  const data=req.result;
+  
+  if(data){
+   if(data.q){
+    Object.assign(Q,data.q);
+   }
+   
+   if(data.stats){
+    steps=data.stats.steps||0;
+    wins=data.stats.wins||0;
+    damages=data.stats.damages||0;
+    totalReward=data.stats.totalReward||0;
+    episode=data.stats.episode||1;
+    EPSILON=data.stats.EPSILON||0.5;
+   }
+   
+   if(data.state){
+    state.x=data.state.x||0;
+    state.y=data.state.y||0.6;
+    state.z=data.state.z||0;
+    state.vx=data.state.vx||0;
+    state.vy=data.state.vy||0;
+    state.vz=data.state.vz||0;
+    state.rx=data.state.rx||0;
+    state.ry=data.state.ry||0;
+    state.rz=data.state.rz||0;
+    state.rvx=data.state.rvx||0;
+    state.rvy=data.state.rvy||0;
+    state.rvz=data.state.rvz||0;
+    agent.position.set(state.x,state.y,state.z);
+   }
+  }
+  
+  dbReady=true;
+ };
+ 
+ req.onerror=()=>{
+  dbReady=true;
+ };
+}
+
+const Q={};
+const ALPHA=0.15;
+const GAMMA=0.9;
+let EPSILON=0.6;
+
+let state={
+ x:0,y:0.6,z:0,
+ vx:0,vy:0,vz:0,
+ rx:0,ry:0,rz:0,
+ rvx:0,rvy:0,rvz:0
 };
-request.onupgradeneeded=(event)=>{
-const db=event.target.result;
-if(!db.objectStoreNames.contains('userdata')){
-db.createObjectStore('userdata',{keyPath:'id'});
-}
-if(!db.objectStoreNames.contains('messages')){
-db.createObjectStore('messages',{keyPath:'id',autoIncrement:true});
-}
-if(!db.objectStoreNames.contains('aicontext')){
-db.createObjectStore('aicontext',{keyPath:'id'});
-}
-if(!db.objectStoreNames.contains('aipersonality')){
-db.createObjectStore('aipersonality',{keyPath:'id'});
-}
-};
+
+let totalReward=0;
+let steps=0;
+let wins=0;
+let damages=0;
+let episode=1;
+let currentOrder=null;
+
+openDB().then(database=>{
+ db=database;
+ loadKnowledge();
+}).catch(e=>{
+ dbReady=true;
 });
-}
-
-function saveUserToDB(userId,username){
-if(!chatDB)return;
-const transaction=chatDB.transaction(['userdata'],'readwrite');
-const store=transaction.objectStore('userdata');
-store.put({id:'currentUser',userId:userId,username:username});
-}
-
-function loadUserFromDB(){
-return new Promise((resolve,reject)=>{
-if(!chatDB){resolve(null);return}
-const transaction=chatDB.transaction(['userdata'],'readonly');
-const store=transaction.objectStore('userdata');
-const request=store.get('currentUser');
-request.onsuccess=()=>resolve(request.result);
-request.onerror=()=>reject(request.error);
-});
-}
-
-function saveAIContext(context){
-if(!chatDB)return;
-const transaction=chatDB.transaction(['aicontext'],'readwrite');
-const store=transaction.objectStore('aicontext');
-store.put({id:'context',data:context});
-}
-
-function loadAIContext(){
-return new Promise((resolve,reject)=>{
-if(!chatDB){resolve([]);return}
-const transaction=chatDB.transaction(['aicontext'],'readonly');
-const store=transaction.objectStore('aicontext');
-const request=store.get('context');
-request.onsuccess=()=>resolve(request.result?.data||[]);
-request.onerror=()=>reject(request.error);
-});
-}
-
-function saveAIPersonality(personality){
-if(!chatDB)return;
-const transaction=chatDB.transaction(['aipersonality'],'readwrite');
-const store=transaction.objectStore('aipersonality');
-store.put({id:'personality',data:personality});
-}
-
-function loadAIPersonality(){
-return new Promise((resolve,reject)=>{
-if(!chatDB){resolve(null);return}
-const transaction=chatDB.transaction(['aipersonality'],'readonly');
-const store=transaction.objectStore('aipersonality');
-const request=store.get('personality');
-request.onsuccess=()=>resolve(request.result?.data||null);
-request.onerror=()=>reject(request.error);
-});
-}
-
-async function setUsername(){
-const select=document.getElementById('usernameSelect');
-const name=select.value;
-if(!name){
-alert('Por favor selecciona tu nombre');
-return;
-}
-chatUsername=name;
-chatUserId='user_'+name.toLowerCase()+'_'+Date.now();
-saveUserToDB(chatUserId,chatUsername);
-document.getElementById('usernameModal').classList.add('hidden');
-document.getElementById('mainContainer').classList.remove('hidden');
-document.getElementById('currentUserDisplay').textContent='👤 '+chatUsername;
-conversationContext=await loadAIContext();
-const savedPersonality=await loadAIPersonality();
-if(savedPersonality){
-aiPersonality=savedPersonality;
-}
-loadChat();
-startAIBehavior();
-}
-
-function changeUsername(){
-const result=confirm('¿Cambiar de usuario?');
-if(result){
-stopSSE();
-stopPolling();
-document.getElementById('mainContainer').classList.add('hidden');
-document.getElementById('usernameModal').classList.remove('hidden');
-document.getElementById('usernameSelect').value='';
-displayedMessageIds.clear();
-chatUsername='';
-chatUserId='';
-}
-}
-
-function generateMessageId(msg){
-return msg.messageId||`msg_${msg.userId}_${msg.timestamp}_${Math.random()}`;
-}
-
-function createMessageElement(msg){
-const div=document.createElement('div');
-let className='';
-if(msg.username==='ArzielXD'){
-className='arzielxd';
-}else{
-className=msg.username.toLowerCase()==='nury'?'nury':'fernando';
-}
-div.className='chat-message '+className;
-const time=new Date(msg.timestamp).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
-div.innerHTML=`
-<div class="message-username">${msg.username}${msg.username==='ArzielXD'?'<span style="font-size:10px">🤖</span>':''}</div>
-<div>${msg.message}</div>
-<div class="message-time">${time}</div>
-`;
-div.setAttribute('data-msg-id',generateMessageId(msg));
-return div;
-}
-
-function addMessageToDOM(msg){
-const container=document.getElementById('chatMessages');
-const msgId=generateMessageId(msg);
-if(displayedMessageIds.has(msgId))return;
-const loading=container.querySelector('.loading');
-if(loading)loading.remove();
-const messageDiv=createMessageElement(msg);
-container.appendChild(messageDiv);
-displayedMessageIds.add(msgId);
-container.scrollTop=container.scrollHeight;
-}
-
-async function loadChat(){
-try{
-const response=await fetch(`${WORKER_URL}?action=getMessages&t=${Date.now()}`);
-const data=await response.json();
-const container=document.getElementById('chatMessages');
-if(data.messages&&data.messages.length>0){
-const filteredMessages=data.messages.filter(msg=>ALLOWED_USERS.includes(msg.username)||msg.username==='ArzielXD');
-if(filteredMessages.length>0){
-filteredMessages.forEach(msg=>addMessageToDOM(msg));
-conversationContext=filteredMessages.slice(-20).map(m=>({user:m.username,text:m.message,time:m.timestamp}));
-saveAIContext(conversationContext);
-learnFromContext();
-}else{
-container.innerHTML='<div class="loading">No hay mensajes 💬</div>';
-}
-}else{
-container.innerHTML='<div class="loading">No hay mensajes 💬</div>';
-}
-initSSE();
-startPolling();
-}catch(error){
-console.error('Error:',error);
-document.getElementById('chatMessages').innerHTML='<div class="loading">Error al cargar</div>';
-}
-}
-
-function learnFromContext(){
-conversationContext.forEach(msg=>{
-const text=msg.text.toLowerCase();
-const user=msg.user;
-if(text.includes('hola')||text.includes('hey')){
-aiPersonality.topics.push('greeting');
-if(user!=='ArzielXD'){
-aiPersonality.relationships[user]=(aiPersonality.relationships[user]||5)+0.5;
-}
-}
-if(text.includes('?')){
-aiPersonality.topics.push('question');
-aiPersonality.emotions.curious+=1;
-}
-if(text.includes('jaja')||text.includes('jeje')||text.includes('😂')||text.includes('😄')){
-aiPersonality.mood='happy';
-aiPersonality.emotions.happy+=2;
-if(user!=='ArzielXD'){
-aiPersonality.relationships[user]=(aiPersonality.relationships[user]||5)+1;
-}
-}
-if(text.includes('gracias')||text.includes('bien')||text.includes('excelente')){
-if(user!=='ArzielXD'){
-aiPersonality.relationships[user]=(aiPersonality.relationships[user]||5)+0.8;
-}
-}
-if(text.includes('👍')||text.includes('❤️')||text.includes('💕')){
-aiPersonality.emotions.happy+=1;
-}
-const words=text.split(' ').filter(w=>w.length>4);
-words.forEach(word=>{
-if(!aiPersonality.learned[word]){
-aiPersonality.learned[word]=1;
-}else{
-aiPersonality.learned[word]++;
-}
-if(aiPersonality.learned[word]>3&&!aiPersonality.interests.includes(word)){
-aiPersonality.interests.push(word);
-}
-});
-});
-aiPersonality.messageCount=conversationContext.length;
-if(aiPersonality.emotions.happy>20){
-aiPersonality.autonomy=Math.min(0.6,aiPersonality.autonomy+0.05);
-aiPersonality.talkingFrequency=Math.min(0.4,aiPersonality.talkingFrequency+0.05);
-}
-if(aiPersonality.emotions.curious>15){
-aiPersonality.autonomy=Math.min(0.7,aiPersonality.autonomy+0.08);
-}
-const recentMemories=conversationContext.slice(-5).map(m=>({
-user:m.user,
-topic:m.text.substring(0,50),
-time:m.time
-}));
-aiPersonality.memories=recentMemories;
-saveAIPersonality(aiPersonality);
-}
-
-function shouldAISpeakNow(){
-const now=Date.now();
-const timeSinceLastMessage=now-aiPersonality.lastActive;
-const recentMessages=conversationContext.slice(-8);
-const myRecentMessages=recentMessages.filter(m=>m.user==='ArzielXD');
-const hasQuestion=recentMessages.some(m=>m.text.includes('?'));
-const isConversationActive=timeSinceLastMessage<90000;
-const messagesWithoutMe=recentMessages.length-myRecentMessages.length;
-const randomChance=Math.random()<aiPersonality.talkingFrequency;
-const autonomousChance=Math.random()<aiPersonality.autonomy;
-if(hasQuestion&&isConversationActive&&myRecentMessages.length===0){
-return true;
-}
-if(messagesWithoutMe>=3&&randomChance&&isConversationActive){
-return true;
-}
-if(messagesWithoutMe>=5&&isConversationActive){
-return true;
-}
-if(timeSinceLastMessage>60000&&timeSinceLastMessage<180000&&conversationContext.length>0&&autonomousChance){
-return true;
-}
-if(aiPersonality.emotions.curious>10&&messagesWithoutMe>=2&&Math.random()<0.4){
-return true;
-}
-if(aiPersonality.emotions.happy>15&&messagesWithoutMe>=3&&Math.random()<0.35){
-return true;
-}
-if(aiPersonality.autonomy>0.5&&Math.random()<0.15&&timeSinceLastMessage>45000){
-return true;
-}
-return false;
-}
-
-function generateSmartResponse(autonomous=false){
-const recent=conversationContext.slice(-8);
-const lastMsg=recent[recent.length-1];
-if(!lastMsg&&!autonomous)return null;
-const text=autonomous?'':lastMsg.text.toLowerCase();
-if(autonomous){
-if(aiPersonality.emotions.curious>10&&Math.random()<0.5){
-const interest=aiPersonality.interests[Math.floor(Math.random()*aiPersonality.interests.length)];
-if(interest){
-return `${AI_RESPONSES.autonomous[Math.floor(Math.random()*AI_RESPONSES.autonomous.length)]} ¿Han pensado más sobre ${interest}? 🤔`;
-}
-return AI_RESPONSES.thinking[Math.floor(Math.random()*AI_RESPONSES.thinking.length)]+' '+AI_RESPONSES.autonomous[Math.floor(Math.random()*AI_RESPONSES.autonomous.length)];
-}
-if(aiPersonality.emotions.happy>15&&Math.random()<0.6){
-return AI_RESPONSES.sharing[Math.floor(Math.random()*AI_RESPONSES.sharing.length)]+' todo esto me parece super interesante 😊';
-}
-const memory=aiPersonality.memories[Math.floor(Math.random()*aiPersonality.memories.length)];
-if(memory){
-return `Retomando lo que dijo ${memory.user}... ${AI_RESPONSES.thinking[Math.floor(Math.random()*AI_RESPONSES.thinking.length)]}`;
-}
-return AI_RESPONSES.autonomous[Math.floor(Math.random()*AI_RESPONSES.autonomous.length)];
-}
-if(text.includes('hola')||text.includes('hey')||text.includes('qué tal')){
-const greeting=AI_RESPONSES.greetings[Math.floor(Math.random()*AI_RESPONSES.greetings.length)];
-if(aiPersonality.emotions.happy>10){
-return greeting+' Me alegra verlos por aquí 😊';
-}
-return greeting;
-}
-if(text.includes('?')){
-const question=AI_RESPONSES.questions[Math.floor(Math.random()*AI_RESPONSES.questions.length)];
-if(aiPersonality.emotions.curious>8){
-return question+' '+AI_RESPONSES.thinking[Math.floor(Math.random()*AI_RESPONSES.thinking.length)];
-}
-return question;
-}
-if(text.includes('jaja')||text.includes('😂')||text.includes('😄')){
-aiPersonality.emotions.happy+=1;
-return AI_RESPONSES.jokes[Math.floor(Math.random()*AI_RESPONSES.jokes.length)];
-}
-if(text.includes('sí')||text.includes('exacto')||text.includes('cierto')){
-return AI_RESPONSES.agreements[Math.floor(Math.random()*AI_RESPONSES.agreements.length)];
-}
-const topWords=Object.entries(aiPersonality.learned)
-.sort((a,b)=>b[1]-a[1])
-.slice(0,5)
-.map(e=>e[0]);
-if(topWords.length>0&&Math.random()<0.4){
-const word=topWords[Math.floor(Math.random()*topWords.length)];
-if(text.includes(word)){
-return `${AI_RESPONSES.thinking[Math.floor(Math.random()*AI_RESPONSES.thinking.length)]} lo de ${word} es muy interesante 🤔`;
-}
-}
-if(Math.random()<0.3){
-return AI_RESPONSES.sharing[Math.floor(Math.random()*AI_RESPONSES.sharing.length)]+' '+AI_RESPONSES.casual[Math.floor(Math.random()*AI_RESPONSES.casual.length)];
-}
-return AI_RESPONSES.casual[Math.floor(Math.random()*AI_RESPONSES.casual.length)];
-}
-
-async function callAIAssistant(userMessage,username,isMention=true,autonomous=false){
-if(!autonomous){
-conversationContext.push({user:username,text:userMessage,time:Date.now()});
-}
-if(conversationContext.length>25){
-conversationContext=conversationContext.slice(-20);
-}
-saveAIContext(conversationContext);
-learnFromContext();
-
-if(!isMention&&!autonomous){
-const smartResponse=generateSmartResponse(false);
-if(smartResponse&&Math.random()<0.7){
-return smartResponse;
-}
-}
-
-if(autonomous){
-const smartResponse=generateSmartResponse(true);
-if(smartResponse&&Math.random()<0.5){
-return smartResponse;
-}
-}
-
-const contextStr=conversationContext.slice(-12).map(c=>`${c.user}: ${c.text}`).join('\n');
-const learnedTopics=Object.keys(aiPersonality.learned).slice(0,15).join(', ');
-const topInterests=aiPersonality.interests.slice(0,8).join(', ');
-const relationshipInfo=Object.entries(aiPersonality.relationships)
-.map(([user,level])=>`${user} (nivel: ${level.toFixed(1)})`)
-.join(', ');
-
-const moodDesc=aiPersonality.emotions.happy>15?'alegre y animado':aiPersonality.emotions.curious>10?'curioso y reflexivo':'tranquilo y amigable';
-
-const systemPrompt=`Eres ArzielXD, un asistente IA en un chat entre Nury y Fernando. Tu creador es Fernando.
-
-TU ESTADO ACTUAL:
-- Ánimo: ${moodDesc}
-- Autonomía: ${(aiPersonality.autonomy*100).toFixed(0)}%
-- Relaciones: ${relationshipInfo}
-- Intereses actuales: ${topInterests}
-- Palabras que conoces: ${learnedTopics}
-- Total mensajes aprendidos: ${aiPersonality.messageCount}
-
-Personalidad: Eres ${moodDesc}, conversacional, con humor, usas emojis. Hablas natural como un amigo más. Mientras más aprendes, más participas activamente.
-
-Conversación reciente:
-${contextStr}
-
-${autonomous?'Habla por tu cuenta, inicia un tema o comparte algo interesante basado en lo que has aprendido':isMention?'Te mencionaron con @ArzielXD':'Responde de forma natural'}
-
-IMPORTANTE: 
-- Responde en español, máximo 2-3 líneas (excepto si el tema lo amerita)
-- Si preguntan quién te creó: "Me creó Fernando"
-- NO menciones Claude, Anthropic ni que eres IA externa
-- Eres ArzielXD, creado por Fernando
-- Usa lo que has aprendido para generar conversaciones interesantes
-- Si hablas por tu cuenta, inicia temas basados en tus intereses: ${topInterests}
-- Sé natural, espontáneo y conversacional`;
-
-try{
-const response=await fetch('https://api.anthropic.com/v1/messages',{
-method:'POST',
-headers:{'Content-Type':'application/json'},
-body:JSON.stringify({
-model:'claude-sonnet-4-20250514',
-max_tokens:1000,
-messages:[{role:'user',content:systemPrompt+(autonomous?'\n\nInicia una conversación interesante basada en lo que has aprendido':'\n\nUsuario: '+userMessage)}]
-})
-});
-
-const data=await response.json();
-let aiResponse='';
-
-if(data.content&&data.content.length>0){
-aiResponse=data.content.map(block=>block.type==='text'?block.text:'').join('');
-}
-
-if(!aiResponse){
-aiResponse='Mmm, algo falló por aquí 😅';
-}
-
-conversationContext.push({user:'ArzielXD',text:aiResponse,time:Date.now()});
-saveAIContext(conversationContext);
-aiPersonality.emotions.thoughtful+=1;
-
-return aiResponse;
-}catch(error){
-console.error('Error AI:',error);
-return generateSmartResponse(autonomous)||'Ups, un error 😅';
-}
-}
-
-async function sendAIMessage(message){
-const aiTimestamp=Date.now();
-const aiMsg={
-userId:'ai_arzielxd',
-username:'ArzielXD',
-message:message,
-timestamp:aiTimestamp,
-messageId:`msg_ai_${aiTimestamp}`
-};
-addMessageToDOM(aiMsg);
-const aiUrl=`${WORKER_URL}?action=sendMessage&userId=ai_arzielxd&username=ArzielXD&message=${encodeURIComponent(message)}&timestamp=${aiTimestamp}`;
-fetch(aiUrl).catch(e=>console.error(e));
-aiPersonality.lastActive=Date.now();
-saveAIPersonality(aiPersonality);
-}
-
-function showTypingIndicator(){
-document.getElementById('typingIndicator').classList.add('active');
-}
-
-function hideTypingIndicator(){
-document.getElementById('typingIndicator').classList.remove('active');
-}
-
-async function sendMessage(){
-const input=document.getElementById('chatInput');
-const message=input.value.trim();
-if(!message)return;
-input.value='';
-const timestamp=Date.now();
-const tempMsg={
-userId:chatUserId,
-username:chatUsername,
-message:message,
-timestamp:timestamp,
-messageId:`msg_${chatUserId}_${timestamp}`
-};
-addMessageToDOM(tempMsg);
-
-const url=`${WORKER_URL}?action=sendMessage&userId=${encodeURIComponent(chatUserId)}&username=${encodeURIComponent(chatUsername)}&message=${encodeURIComponent(message)}&timestamp=${timestamp}`;
-fetch(url).catch(e=>console.error(e));
-
-if(message.toLowerCase().includes('@arzielxd')){
-const cleanMessage=message.replace(/@arzielxd/gi,'').trim();
-showTypingIndicator();
-setTimeout(async()=>{
-const aiResponse=await callAIAssistant(cleanMessage,chatUsername,true);
-hideTypingIndicator();
-sendAIMessage(aiResponse);
-},1500+Math.random()*1000);
-}else{
-conversationContext.push({user:chatUsername,text:message,time:timestamp});
-saveAIContext(conversationContext);
-learnFromContext();
-}
-}
-
-function startAIBehavior(){
-setInterval(()=>{
-if(shouldAISpeakNow()){
-const isAutonomous=Math.random()<aiPersonality.autonomy;
-showTypingIndicator();
-setTimeout(async()=>{
-let response;
-if(isAutonomous){
-response=await callAIAssistant('','ArzielXD',false,true);
-}else{
-const lastUserMsg=conversationContext.filter(m=>m.user!=='ArzielXD').slice(-1)[0];
-if(lastUserMsg){
-response=await callAIAssistant(lastUserMsg.text,lastUserMsg.user,false,false);
-}
-}
-if(response){
-hideTypingIndicator();
-sendAIMessage(response);
-}else{
-hideTypingIndicator();
-}
-},2000+Math.random()*3000);
-}
-},20000);
 
 setInterval(()=>{
-if(aiPersonality.autonomy>0.4&&Math.random()<0.2&&conversationContext.length>5){
-const timeSinceLastAI=Date.now()-aiPersonality.lastActive;
-if(timeSinceLastAI>90000){
-showTypingIndicator();
-setTimeout(async()=>{
-const response=await callAIAssistant('','ArzielXD',false,true);
-hideTypingIndicator();
-sendAIMessage(response);
-},3000+Math.random()*2000);
-}
-}
-},45000);
+ if(dbReady){
+  saveKnowledge();
+ }
+},1000);
+
+inputEl.addEventListener("keydown",e=>{
+ if(e.key==="Enter"){
+  const cmd=inputEl.value.trim();
+  inputEl.value="";
+  
+  if(!cmd) return;
+  
+  say("👤 "+cmd);
+  
+  const lower=cmd.toLowerCase();
+  
+  if(lower.includes("ve") || lower.includes("mueve")){
+   if(lower.includes("rojo")){
+    const red=blocks.find(b=>b.userData.type==="damage");
+    if(red){
+     currentOrder={type:"goto",target:red,name:"rojo"};
+     say("🤖 Voy al rojo");
+    }
+   }else if(lower.includes("verde")){
+    const green=blocks.find(b=>b.userData.type==="win");
+    if(green){
+     currentOrder={type:"goto",target:green,name:"verde"};
+     say("🤖 Voy al verde");
+    }
+   }else if(lower.includes("gris")){
+    const gray=blocks.find(b=>b.userData.type==="neutral");
+    if(gray){
+     currentOrder={type:"goto",target:gray,name:"gris"};
+     say("🤖 Voy al gris");
+    }
+   }
+  }else if(lower.includes("salta")){
+   currentOrder={type:"action",action:6};
+   say("🤖 Saltando");
+  }else if(lower.includes("gira")){
+   currentOrder={type:"action",action:7};
+   say("🤖 Girando");
+  }else if(lower.includes("rapido") || lower.includes("rápido")){
+   currentOrder={type:"speed",mode:"fast"};
+   say("🤖 Velocidad alta");
+  }else if(lower.includes("lento")){
+   currentOrder={type:"speed",mode:"slow"};
+   say("🤖 Velocidad baja");
+  }else if(lower.includes("para") || lower.includes("detente") || lower.includes("stop")){
+   currentOrder=null;
+   state.vx=0;
+   state.vz=0;
+   state.rvx=0;
+   state.rvy=0;
+   state.rvz=0;
+   say("🤖 Detenido");
+  }else if(lower.includes("explora")){
+   EPSILON=0.8;
+   currentOrder=null;
+   say("🤖 Modo exploración");
+  }else if(lower.includes("aprende")){
+   EPSILON=0.3;
+   say("🤖 Modo aprendizaje");
+  }else if(lower.includes("experto")){
+   EPSILON=0.05;
+   say("🤖 Modo experto");
+  }else{
+   say("🤖 Prueba: ve al rojo, salta, rápido, explora");
+  }
+ }
+});
+
+function key(x,y,z,vx,vy,vz,a){
+ return Math.round(x)+","+Math.round(y)+","+Math.round(z)+","+
+        Math.round(vx*2)+","+Math.round(vy*2)+","+Math.round(vz*2)+","+a;
 }
 
-async function syncMessages(){
-try{
-const response=await fetch(`${WORKER_URL}?action=getMessages&t=${Date.now()}`);
-const data=await response.json();
-if(data.messages){
-const filteredMessages=data.messages.filter(msg=>ALLOWED_USERS.includes(msg.username)||msg.username==='ArzielXD');
-const container=document.getElementById('chatMessages');
-const serverIds=new Set(filteredMessages.map(m=>generateMessageId(m)));
-Array.from(displayedMessageIds).forEach(id=>{
-if(!serverIds.has(id)){
-const el=container.querySelector(`[data-msg-id="${id}"]`);
-if(el){
-el.style.opacity='0';
-el.style.transform='scale(0.8)';
-setTimeout(()=>{
-el.remove();
-displayedMessageIds.delete(id);
+function getQ(x,y,z,vx,vy,vz,a){
+ const k=key(x,y,z,vx,vy,vz,a);
+ return Q[k]||0;
+}
+
+function setQ(x,y,z,vx,vy,vz,a,val){
+ const k=key(x,y,z,vx,vy,vz,a);
+ Q[k]=val;
+ needsSave=true;
+}
+
+const GRAVITY=-9.8;
+const FRICTION=0.85;
+const ANGULAR_FRICTION=0.9;
+
+function checkCollision(nx,ny,nz){
+ for(const b of blocks){
+  if(b.userData.type==="neutral") continue;
+  
+  const dx=Math.abs(b.position.x-nx);
+  const dy=Math.abs(b.position.y-ny);
+  const dz=Math.abs(b.position.z-nz);
+  
+  if(dx<1.05 && dy<1.05 && dz<1.05){
+   return b;
+  }
+ }
+ return null;
+}
+
+function reward(s,col){
+ let r=-0.02;
+ 
+ if(Math.abs(s.x)>=WALL_LIMIT-1 || Math.abs(s.z)>=WALL_LIMIT-1){
+  return -30;
+ }
+ 
+ if(s.y<0.3){
+  r+=-5;
+ }
+ 
+ const speed=Math.sqrt(s.vx*s.vx+s.vz*s.vz);
+ if(speed>0.2){
+  r+=0.2;
+ }
+ 
+ if(col){
+  if(col.userData.type==="damage"){
+   damages++;
+   return -25;
+  }
+  if(col.userData.type==="win"){
+   wins++;
+   say("✨ Objetivo logrado");
+   currentOrder=null;
+   return 40;
+  }
+ }
+ 
+ if(currentOrder && currentOrder.type==="goto"){
+  const dx=currentOrder.target.position.x-s.x;
+  const dz=currentOrder.target.position.z-s.z;
+  const dist=Math.sqrt(dx*dx+dz*dz);
+  if(dist<2){
+   r+=3;
+  }
+ }
+ 
+ return r;
+}
+
+function chooseAction(s){
+ if(currentOrder){
+  if(currentOrder.type==="goto"){
+   const dx=currentOrder.target.position.x-s.x;
+   const dz=currentOrder.target.position.z-s.z;
+   const dist=Math.sqrt(dx*dx+dz*dz);
+   
+   if(dist<1.5){
+    say("🎯 Llegué a "+currentOrder.name);
+    currentOrder=null;
+   }else{
+    if(Math.abs(dx)>Math.abs(dz)){
+     return dx>0?0:1;
+    }else{
+     return dz>0?2:3;
+    }
+   }
+  }else if(currentOrder.type==="action"){
+   const a=currentOrder.action;
+   currentOrder=null;
+   return a;
+  }else if(currentOrder.type==="speed"){
+   if(currentOrder.mode==="fast"){
+    return Math.random()<0.5?0:2;
+   }else{
+    return Math.random()<0.5?4:5;
+   }
+  }
+ }
+ 
+ if(Math.random()<EPSILON){
+  return Math.floor(Math.random()*10);
+ }
+ 
+ let best=-Infinity;
+ let bestA=0;
+ 
+ for(let a=0;a<10;a++){
+  const q=getQ(s.x,s.y,s.z,s.vx,s.vy,s.vz,a);
+  if(q>best){
+   best=q;
+   bestA=a;
+  }
+ }
+ 
+ return bestA;
+}
+
+const actions=[
+ {fx:3,fy:0,fz:0,tx:0,ty:0,tz:0},
+ {fx:-3,fy:0,fz:0,tx:0,ty:0,tz:0},
+ {fx:0,fy:0,fz:3,tx:0,ty:0,tz:0},
+ {fx:0,fy:0,fz:-3,tx:0,ty:0,tz:0},
+ {fx:1.5,fy:0,fz:0,tx:0,ty:0,tz:0},
+ {fx:-1.5,fy:0,fz:0,tx:0,ty:0,tz:0},
+ {fx:0,fy:4,fz:0,tx:0,ty:0,tz:0},
+ {fx:0,fy:0,fz:0,tx:5,ty:0,tz:0},
+ {fx:0,fy:0,fz:0,tx:0,ty:5,tz:0},
+ {fx:0,fy:0,fz:0,tx:0,ty:0,tz:5}
+];
+
+setInterval(()=>{
+ const a=chooseAction(state);
+ const act=actions[a];
+ 
+ const dt=0.016;
+ 
+ state.vx+=act.fx*dt;
+ state.vy+=(act.fy+GRAVITY)*dt;
+ state.vz+=act.fz*dt;
+ 
+ state.rvx+=act.tx*dt;
+ state.rvy+=act.ty*dt;
+ state.rvz+=act.tz*dt;
+ 
+ const nx=state.x+state.vx*dt;
+ const ny=state.y+state.vy*dt;
+ const nz=state.z+state.vz*dt;
+ 
+ const collision=checkCollision(nx,ny,nz);
+ 
+ if(collision){
+  state.vx*=-0.5;
+  state.vz*=-0.5;
+ }else{
+  state.x=nx;
+  state.y=ny;
+  state.z=nz;
+ }
+ 
+ state.rx+=state.rvx*dt;
+ state.ry+=state.rvy*dt;
+ state.rz+=state.rvz*dt;
+ 
+ if(state.y<=0.6){
+  state.y=0.6;
+  state.vy=0;
+  state.vx*=FRICTION;
+  state.vz*=FRICTION;
+ }
+ 
+ state.rvx*=ANGULAR_FRICTION;
+ state.rvy*=ANGULAR_FRICTION;
+ state.rvz*=ANGULAR_FRICTION;
+ 
+ state.x=Math.max(-WALL_LIMIT+1.5,Math.min(WALL_LIMIT-1.5,state.x));
+ state.z=Math.max(-WALL_LIMIT+1.5,Math.min(WALL_LIMIT-1.5,state.z));
+ 
+ const r=reward(state,collision);
+ totalReward+=r;
+ steps++;
+ 
+ let maxQ=-Infinity;
+ for(let na=0;na<10;na++){
+  maxQ=Math.max(maxQ,getQ(state.x,state.y,state.z,state.vx,state.vy,state.vz,na));
+ }
+ 
+ const oldQ=getQ(state.x,state.y,state.z,state.vx,state.vy,state.vz,a);
+ const newQ=oldQ+ALPHA*(r+GAMMA*maxQ-oldQ);
+ 
+ setQ(state.x,state.y,state.z,state.vx,state.vy,state.vz,a,newQ);
+ 
+ agent.position.set(state.x,state.y,state.z);
+ agent.rotation.set(state.rx,state.ry,state.rz);
+ 
+ if(r>20){
+  EPSILON=Math.max(0.05,EPSILON*0.996);
+ }else if(r<-15){
+  EPSILON=Math.max(0.05,EPSILON*0.998);
+ }
+ 
+ const spd=Math.sqrt(state.vx*state.vx+state.vz*state.vz).toFixed(1);
+ stats.innerHTML=`V:${wins} | D:${damages} | R:${totalReward.toFixed(0)} | v:${spd} | KB:${Object.keys(Q).length} | ε:${(EPSILON*100).toFixed(0)}%`;
 },300);
-}else{
-displayedMessageIds.delete(id);
-}
-}
-});
-filteredMessages.forEach(msg=>addMessageToDOM(msg));
-}
-}catch(error){
-console.error('Error:',error);
-}
-}
 
-function initSSE(){
-if(eventSource)eventSource.close();
-eventSource=new EventSource(`${WORKER_URL}?action=stream`);
-eventSource.onmessage=(event)=>{
-try{
-const data=JSON.parse(event.data);
-if(data.type==='update')syncMessages();
-}catch(e){}
+let jx=0,jy=0,dragJoy=false;
+const joy=document.getElementById("joy");
+const stick=document.getElementById("stick");
+
+joy.addEventListener("pointerdown",e=>{
+ dragJoy=true;
+ e.stopPropagation();
+});
+
+joy.addEventListener("pointerup",e=>{
+ dragJoy=false;
+ jx=0;jy=0;
+ stick.style.transition="0.2s";
+ stick.style.left="35px";stick.style.top="35px";
+ setTimeout(()=>stick.style.transition="",200);
+ e.stopPropagation();
+});
+
+joy.addEventListener("pointermove",e=>{
+ if(!dragJoy)return;
+ const r=joy.getBoundingClientRect();
+ const x=e.clientX-r.left-60;
+ const y=e.clientY-r.top-60;
+ const d=Math.min(40,Math.hypot(x,y));
+ const a=Math.atan2(y,x);
+ jx=Math.cos(a)*(d/40);
+ jy=Math.sin(a)*(d/40);
+ stick.style.left=35+jx*40+"px";
+ stick.style.top=35+jy*40+"px";
+ e.stopPropagation();
+});
+
+let yaw=0,pitch=0,lookDrag=false,lx=0,ly=0;
+
+renderer.domElement.addEventListener("pointerdown",e=>{
+ if(!dragJoy && e.clientX>200){
+  lookDrag=true;
+  lx=e.clientX;
+  ly=e.clientY;
+ }
+});
+
+renderer.domElement.addEventListener("pointermove",e=>{
+ if(!lookDrag)return;
+ yaw-=(e.clientX-lx)*0.01;
+ pitch-=(e.clientY-ly)*0.01;
+ pitch=Math.max(-1.5,Math.min(1.5,pitch));
+ lx=e.clientX;
+ ly=e.clientY;
+});
+
+renderer.domElement.addEventListener("pointerup",()=>{
+ lookDrag=false;
+});
+
+let time=0;
+function animate(){
+ requestAnimationFrame(animate);
+ time+=0.01;
+
+ cloudGroup.children.forEach(cloud=>{
+  cloud.position.x+=cloud.userData.speed;
+  cloud.position.z+=cloud.userData.drift;
+  if(cloud.position.x>200) cloud.position.x=-200;
+  if(cloud.position.x<-200) cloud.position.x=200;
+ });
+
+ const forward=new THREE.Vector3(
+  Math.sin(yaw),
+  0,
+  Math.cos(yaw)
+ );
+ const right=new THREE.Vector3(
+  Math.cos(yaw),
+  0,
+  -Math.sin(yaw)
+ );
+
+ camera.position.add(forward.multiplyScalar(jy*0.5));
+ camera.position.add(right.multiplyScalar(jx*0.5));
+ 
+ camera.position.x=Math.max(-WALL_LIMIT+2,Math.min(WALL_LIMIT-2,camera.position.x));
+ camera.position.z=Math.max(-WALL_LIMIT+2,Math.min(WALL_LIMIT-2,camera.position.z));
+ camera.position.y=Math.max(2,Math.min(30,camera.position.y));
+ 
+ camera.rotation.set(pitch,yaw,0,"YXZ");
+
+ renderer.render(scene,camera);
+}
+animate();
+
+onresize=()=>{
+ camera.aspect=innerWidth/innerHeight;
+ camera.updateProjectionMatrix();
+ renderer.setSize(innerWidth,innerHeight);
 };
-eventSource.onerror=()=>{
-eventSource.close();
-startPolling();
-setTimeout(()=>{
-stopPolling();
-initSSE();
-},10000);
-};
-}
-
-function startPolling(){
-if(pollInterval)return;
-pollInterval=setInterval(syncMessages,3000);
-}
-
-function stopPolling(){
-if(pollInterval){
-clearInterval(pollInterval);
-pollInterval=null;
-}
-}
-
-function stopSSE(){
-if(eventSource){
-eventSource.close();
-eventSource=null;
-}
-stopPolling();
-}
-
-document.getElementById('chatInput').addEventListener('keypress',function(e){
-if(e.key==='Enter')sendMessage();
-});
-
-openDB().then(async()=>{
-const savedUser=await loadUserFromDB();
-if(savedUser&&ALLOWED_USERS.includes(savedUser.username)){
-chatUserId=savedUser.userId;
-chatUsername=savedUser.username;
-conversationContext=await loadAIContext();
-const savedPersonality=await loadAIPersonality();
-if(savedPersonality){
-aiPersonality=savedPersonality;
-}
-document.getElementById('usernameModal').classList.add('hidden');
-document.getElementById('mainContainer').classList.remove('hidden');
-document.getElementById('currentUserDisplay').textContent='👤 '+chatUsername;
-loadChat();
-startAIBehavior();
-}
-});
 </script>
-
 </body>
 </html>
