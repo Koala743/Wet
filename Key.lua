@@ -2,23 +2,35 @@ local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 local StarterGui = game:GetService("StarterGui")
-
 local SERVICE_ID = 16251
-local SERVICE_NAME = "10 Horas"
 local PLATOBOOST_HOSTS = {"https://api.platoboost.com/", "https://api.platoboost.net/", "https://api.platoboost.app/"}
-
-local requestFunc = http_request or request or HttpRequest or (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request)
-
+local cachedHost = nil
+local requestFunc = http_request or request or HttpRequest or (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request) or (krnl and krnl.request) or (Delta and Delta.request) or (Krnl and Krnl.request) or (Fluxus and Fluxus.request) or (getgenv().request) or function(options)
+    local success, result = pcall(function()
+        if options.Method == "GET" then
+            return {StatusCode = 200, Body = HttpService:GetAsync(options.Url)}
+        else
+            return {StatusCode = 200, Body = HttpService:PostAsync(options.Url, options.Body or "", Enum.HttpContentType.ApplicationJson)}
+        end
+    end)
+    if success then
+        return result
+    else
+        if string.find(tostring(result), "429") or string.find(tostring(result), "TooManyRequests") or string.find(tostring(result), "rate limit") then
+            return {StatusCode = 429, Body = '{"success":false,"message":"Rate limited"}'}
+        end
+        return {StatusCode = 500, Body = '{"success":false,"message":"' .. tostring(result):gsub('"', '\\"') .. '"}'}
+    end
+end
 local function notify(title, text, duration)
     pcall(function()
         StarterGui:SetCore("SendNotification", {
             Title = title,
             Text = text,
-            Duration = duration or 5
+            Duration = duration or 6
         })
     end)
 end
-
 local function generateRandomIdentifier()
     local chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
     local id = ""
@@ -28,107 +40,172 @@ local function generateRandomIdentifier()
     end
     return id
 end
-
 local universalHwid = generateRandomIdentifier()
-
-local function makeRequest(url, method, body)
+local function makeRequest(url, method, body, timeout)
     local options = {
         Url = url,
         Method = method or "GET",
         Headers = {
-            ["Content-Type"] = "application/json"
+            ["Content-Type"] = "application/json",
+            ["User-Agent"] = "Roblox/KeySystem/v2.1"
         },
         Body = body and HttpService:JSONEncode(body) or nil
     }
-    
-    local success, result = pcall(function()
-        return requestFunc(options)
+    timeout = timeout or 8
+    local result = nil
+    local done = false
+    local startTime = tick()
+    task.spawn(function()
+        local ok, res = pcall(function() return requestFunc(options) end)
+        if ok and res then
+            result = res
+        end
+        done = true
     end)
-    
-    if success and result then
+    while not done and tick() - startTime < timeout do
+        task.wait(0.05)
+    end
+    if result and result.StatusCode then
         return result
     end
-    return nil
+    return {StatusCode = 408, Body = '{"success":false,"message":"Timeout"}'}
 end
-
+local function testSingleHost(host)
+    local startTime = tick()
+    local res = makeRequest(host .. "public/connectivity", "GET", nil, 3)
+    local responseTime = tick() - startTime
+    if res and res.StatusCode == 200 then
+        return true, responseTime
+    end
+    return false, 999
+end
 local function testHost()
-    for _, host in ipairs(PLATOBOOST_HOSTS) do
-        local res = makeRequest(host .. "public/connectivity", "GET")
-        if res and res.StatusCode == 200 then
-            return host
+    if cachedHost then
+        local working, responseTime = testSingleHost(cachedHost)
+        if working then
+            return cachedHost
         end
     end
-    return nil
-end
-
-local function generateLink()
-    notify("🔗 Generando", "Creando enlace...", 3)
-    
-    local host = testHost()
-    if not host then
-        notify("❌ Error", "No hay conexión a servidores", 5)
-        return nil
+    local hostResults = {}
+    for _, host in ipairs(PLATOBOOST_HOSTS) do
+        local working, responseTime = testSingleHost(host)
+        if working then
+            table.insert(hostResults, {host = host, responseTime = responseTime, working = true})
+        else
+            table.insert(hostResults, {host = host, responseTime = 999, working = false})
+        end
     end
-    
+    table.sort(hostResults, function(a, b)
+        if a.working and not b.working then return true end
+        if not a.working and b.working then return false end
+        return a.responseTime < b.responseTime
+    end)
+    if #hostResults > 0 and hostResults[1].working then
+        cachedHost = hostResults[1].host
+        return hostResults[1].host
+    end
+    local errorDetails = "Hosts fallidos: "
+    for i, h in ipairs(hostResults) do
+        errorDetails = errorDetails .. h.host
+        if i < #hostResults then errorDetails = errorDetails .. ", " end
+    end
+    return nil, errorDetails
+end
+local function tryMultipleHosts(endpoint, method, body, validator)
+    for attempt = 1, 2 do
+        local host, hostError = testHost()
+        if not host then
+            if attempt == 2 then
+                return nil, "Sin conexión a Platoboost. " .. (hostError or "")
+            end
+            task.wait(2)
+        else
+            local url = host .. endpoint
+            local res = makeRequest(url, method, body, 8)
+            if res and res.StatusCode == 200 and res.Body then
+                local ok, data = pcall(function() return HttpService:JSONDecode(res.Body) end)
+                if ok and data then
+                    if validator then
+                        local valid, result = validator(data)
+                        if valid then
+                            return result, nil
+                        end
+                    else
+                        return data, nil
+                    end
+                end
+            end
+            if attempt == 1 then
+                task.wait(2)
+            end
+        end
+    end
+    return nil, "Error de conexión después de múltiples intentos"
+end
+local function generateLink()
+    notify("🔗 Generando", "Creando enlace Platoboost...", 3)
     local body = {
         service = SERVICE_ID,
         identifier = universalHwid
     }
-    
-    local res = makeRequest(host .. "public/start", "POST", body)
-    
-    if res and res.StatusCode == 200 and res.Body then
-        local ok, data = pcall(function() return HttpService:JSONDecode(res.Body) end)
-        if ok and data.success and data.data and data.data.url then
-            notify("✅ Link Generado", "Copiado al portapapeles", 5)
-            if setclipboard then
-                setclipboard(data.data.url)
-            end
-            print("LINK GENERADO:", data.data.url)
-            return data.data.url
+    local validator = function(data)
+        if data.success and data.data and data.data.url then
+            return true, data.data.url
         end
-    end
-    
-    notify("❌ Error", "No se pudo generar el link", 5)
-    return nil
-end
-
-local function verifyKey(key)
-    notify("⏳ Verificando", "Comprobando clave...", 3)
-    
-    local host = testHost()
-    if not host then
-        notify("❌ Error", "No hay conexión a servidores", 5)
         return false
     end
-    
-    local endpoint = string.format("public/whitelist/%d?identifier=%s&key=%s",
+    local result, error = tryMultipleHosts("public/start", "POST", body, validator)
+    if result then
+        notify("✅ Link Generado", "Copiado al portapapeles exitosamente", 5)
+        if setclipboard then
+            pcall(function() setclipboard(result) end)
+        end
+        print("LINK GENERADO:", result)
+        print("HWID:", universalHwid)
+        return result
+    else
+        local fullError = "ERROR: " .. tostring(error or "Sin respuesta del servidor")
+        notify("❌ Error Generación", fullError, 8)
+        print(fullError)
+        print("HWID usado:", universalHwid)
+        print("Service ID:", SERVICE_ID)
+        return nil
+    end
+end
+local function verifyKey(key)
+    notify("⏳ Verificando", "Comprobando clave...", 3)
+    local nonce = HttpService:GenerateGUID(false):gsub("-", ""):sub(1, 16)
+    local endpoint = string.format("public/whitelist/%d?identifier=%s&key=%s&nonce=%s",
         SERVICE_ID,
         HttpService:URLEncode(universalHwid),
-        HttpService:URLEncode(key))
-    
-    local res = makeRequest(host .. endpoint, "GET")
-    
-    if res and res.StatusCode == 200 and res.Body then
-        local ok, data = pcall(function() return HttpService:JSONDecode(res.Body) end)
-        if ok and data.success and data.data and data.data.valid then
-            notify("✅ Verificado", "Clave válida!", 5)
-            print("CLAVE VÁLIDA!")
-            return true
+        HttpService:URLEncode(key),
+        nonce)
+    local validator = function(data)
+        if data.success and data.data and data.data.valid then
+            return true, true
         end
+        return false
     end
-    
-    notify("❌ Inválida", "Clave incorrecta", 5)
-    return false
+    local result, error = tryMultipleHosts(endpoint, "GET", nil, validator)
+    if result then
+        notify("✅ Clave Verificada", "Acceso concedido correctamente", 5)
+        print("CLAVE VÁLIDA:", key)
+        print("HWID:", universalHwid)
+        return true
+    else
+        local fullError = "ERROR: " .. tostring(error or "Clave inválida o expirada")
+        notify("❌ Error Verificación", fullError, 8)
+        print(fullError)
+        print("Key usada:", key)
+        print("HWID usado:", universalHwid)
+        return false
+    end
 end
-
 if game.CoreGui:FindFirstChild("MiniKeyTest") then
     game.CoreGui.MiniKeyTest:Destroy()
 end
-
 local Gui = Instance.new("ScreenGui", game.CoreGui)
 Gui.Name = "MiniKeyTest"
-
 local Frame = Instance.new("Frame", Gui)
 Frame.Size = UDim2.new(0, 300, 0, 220)
 Frame.Position = UDim2.new(0.5, -150, 0.5, -110)
@@ -137,7 +214,6 @@ Frame.BorderSizePixel = 2
 Frame.BorderColor3 = Color3.fromRGB(100, 100, 255)
 Frame.Active = true
 Frame.Draggable = true
-
 local Title = Instance.new("TextLabel", Frame)
 Title.Size = UDim2.new(1, 0, 0, 40)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
@@ -146,7 +222,6 @@ Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 14
 Title.BorderSizePixel = 0
-
 local InfoLabel = Instance.new("TextLabel", Frame)
 InfoLabel.Size = UDim2.new(1, -20, 0, 30)
 InfoLabel.Position = UDim2.new(0, 10, 0, 45)
@@ -154,9 +229,8 @@ InfoLabel.BackgroundTransparency = 1
 InfoLabel.Text = "HWID: " .. universalHwid:sub(1, 12) .. "..."
 InfoLabel.TextColor3 = Color3.fromRGB(150, 150, 200)
 InfoLabel.Font = Enum.Font.Gotham
-InfoLabel.TextSize = 9
+InLabel.TextSize = 9
 InfoLabel.TextXAlignment = Enum.TextXAlignment.Left
-
 local KeyInput = Instance.new("TextBox", Frame)
 KeyInput.Size = UDim2.new(1, -40, 0, 35)
 KeyInput.Position = UDim2.new(0, 20, 0, 80)
@@ -168,7 +242,6 @@ KeyInput.PlaceholderText = "Ingresa tu clave aquí..."
 KeyInput.Text = ""
 KeyInput.BorderSizePixel = 1
 KeyInput.BorderColor3 = Color3.fromRGB(100, 100, 255)
-
 local GenerateBtn = Instance.new("TextButton", Frame)
 GenerateBtn.Size = UDim2.new(1, -40, 0, 35)
 GenerateBtn.Position = UDim2.new(0, 20, 0, 125)
@@ -178,7 +251,6 @@ GenerateBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 GenerateBtn.Font = Enum.Font.GothamBold
 GenerateBtn.TextSize = 12
 GenerateBtn.BorderSizePixel = 0
-
 local VerifyBtn = Instance.new("TextButton", Frame)
 VerifyBtn.Size = UDim2.new(1, -40, 0, 35)
 VerifyBtn.Position = UDim2.new(0, 20, 0, 170)
@@ -188,11 +260,9 @@ VerifyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 VerifyBtn.Font = Enum.Font.GothamBold
 VerifyBtn.TextSize = 12
 VerifyBtn.BorderSizePixel = 0
-
 GenerateBtn.MouseButton1Click:Connect(function()
     GenerateBtn.Text = "⏳ Generando..."
     GenerateBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
-    
     task.spawn(function()
         local link = generateLink()
         task.wait(1)
@@ -200,22 +270,17 @@ GenerateBtn.MouseButton1Click:Connect(function()
         GenerateBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 255)
     end)
 end)
-
 VerifyBtn.MouseButton1Click:Connect(function()
     local key = KeyInput.Text:gsub("^%s*(.-)%s*$", "%1")
-    
     if key == "" then
-        notify("⚠️ Error", "Ingresa una clave primero", 3)
+        notify("⚠️ Error Input", "Debes ingresar una clave primero", 6)
         return
     end
-    
     VerifyBtn.Text = "⏳ Verificando..."
     VerifyBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
-    
     task.spawn(function()
         local isValid = verifyKey(key)
         task.wait(1)
-        
         if isValid then
             VerifyBtn.Text = "✅ VÁLIDA!"
             VerifyBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
@@ -230,24 +295,20 @@ VerifyBtn.MouseButton1Click:Connect(function()
         end
     end)
 end)
-
 GenerateBtn.MouseEnter:Connect(function()
     GenerateBtn.BackgroundColor3 = Color3.fromRGB(120, 120, 255)
 end)
-
 GenerateBtn.MouseLeave:Connect(function()
     GenerateBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 255)
 end)
-
 VerifyBtn.MouseEnter:Connect(function()
     VerifyBtn.BackgroundColor3 = Color3.fromRGB(120, 255, 120)
 end)
-
 VerifyBtn.MouseLeave:Connect(function()
     VerifyBtn.BackgroundColor3 = Color3.fromRGB(100, 255, 100)
 end)
-
-notify("🚀 Sistema Iniciado", "Mini Key System Test cargado", 4)
+notify("🚀 Sistema Iniciado", "Mini Key System Test cargado", 5)
 print("=== MINI KEY SYSTEM TEST ===")
 print("HWID:", universalHwid)
 print("Service ID:", SERVICE_ID)
+print("Executor:", identifyexecutor and identifyexecutor() or "Unknown")
