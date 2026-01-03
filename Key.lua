@@ -105,10 +105,7 @@ local function loadHostCache()
     if not success then return nil end
     local ok, data = pcall(function() return HttpService:JSONDecode(content) end)
     if not ok or not data then return nil end
-    if os.time() - data.timestamp < 600 then
-        return data.host
-    end
-    return nil
+    return data.host
 end
 local function makeRequest(url, method, body, timeout)
     local options = {
