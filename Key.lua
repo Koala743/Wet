@@ -4,7 +4,8 @@ local LocalPlayer = Players.LocalPlayer
 local StarterGui = game:GetService("StarterGui")
 local SERVICE_ID = 16251
 local PLATOBOOST_HOSTS = {"https://api.platoboost.com/", "https://api.platoboost.net/", "https://api.platoboost.app/"}
-local cachedHost = nil
+local HOST_CACHE_FILE = "Platoboost_Host_Cache.json"
+local IDENTIFIER_FILE = "Platoboost_Identifiers.json"
 local requestFunc = http_request or request or HttpRequest or (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request) or (krnl and krnl.request) or (Delta and Delta.request) or (Krnl and Krnl.request) or (Fluxus and Fluxus.request) or (getgenv().request) or function(options)
     local success, result = pcall(function()
         if options.Method == "GET" then
@@ -40,7 +41,75 @@ local function generateRandomIdentifier()
     end
     return id
 end
-local universalHwid = generateRandomIdentifier()
+local function saveIdentifier(identifier)
+    local data = {}
+    if isfile and isfile(IDENTIFIER_FILE) then
+        local success, content = pcall(readfile, IDENTIFIER_FILE)
+        if success then
+            local ok, decoded = pcall(function() return HttpService:JSONDecode(content) end)
+            if ok then data = decoded end
+        end
+    end
+    if not data[LocalPlayer.Name] then data[LocalPlayer.Name] = {} end
+    data[LocalPlayer.Name][SERVICE_ID] = {
+        identifier = identifier,
+        created = os.time(),
+        userId = LocalPlayer.UserId
+    }
+    if writefile then
+        pcall(function()
+            writefile(IDENTIFIER_FILE, HttpService:JSONEncode(data))
+        end)
+    end
+end
+local function loadIdentifier()
+    if not isfile or not isfile(IDENTIFIER_FILE) then return nil end
+    local success, content = pcall(readfile, IDENTIFIER_FILE)
+    if not success then return nil end
+    local ok, data = pcall(function() return HttpService:JSONDecode(content) end)
+    if not ok or not data then return nil end
+    if data[LocalPlayer.Name] and data[LocalPlayer.Name][SERVICE_ID] then
+        local idData = data[LocalPlayer.Name][SERVICE_ID]
+        if idData.userId == LocalPlayer.UserId then
+            return idData.identifier
+        end
+    end
+    return nil
+end
+local function getOrCreateIdentifier()
+    local existing = loadIdentifier()
+    if existing then
+        return existing
+    else
+        local newId = generateRandomIdentifier()
+        saveIdentifier(newId)
+        return newId
+    end
+end
+local universalHwid = getOrCreateIdentifier()
+local function saveHostCache(host)
+    local data = {
+        host = host,
+        timestamp = os.time(),
+        player = LocalPlayer.Name
+    }
+    if writefile then
+        pcall(function()
+            writefile(HOST_CACHE_FILE, HttpService:JSONEncode(data))
+        end)
+    end
+end
+local function loadHostCache()
+    if not isfile or not isfile(HOST_CACHE_FILE) then return nil end
+    local success, content = pcall(readfile, HOST_CACHE_FILE)
+    if not success then return nil end
+    local ok, data = pcall(function() return HttpService:JSONDecode(content) end)
+    if not ok or not data then return nil end
+    if os.time() - data.timestamp < 600 then
+        return data.host
+    end
+    return nil
+end
 local function makeRequest(url, method, body, timeout)
     local options = {
         Url = url,
@@ -80,6 +149,7 @@ local function testSingleHost(host)
     return false, 999
 end
 local function testHost()
+    local cachedHost = loadHostCache()
     if cachedHost then
         local working, responseTime = testSingleHost(cachedHost)
         if working then
@@ -101,7 +171,7 @@ local function testHost()
         return a.responseTime < b.responseTime
     end)
     if #hostResults > 0 and hostResults[1].working then
-        cachedHost = hostResults[1].host
+        saveHostCache(hostResults[1].host)
         return hostResults[1].host
     end
     local errorDetails = "Hosts fallidos: "
@@ -229,7 +299,7 @@ InfoLabel.BackgroundTransparency = 1
 InfoLabel.Text = "HWID: " .. universalHwid:sub(1, 12) .. "..."
 InfoLabel.TextColor3 = Color3.fromRGB(150, 150, 200)
 InfoLabel.Font = Enum.Font.Gotham
-InLabel.TextSize = 9
+InfoLabel.TextSize = 9
 InfoLabel.TextXAlignment = Enum.TextXAlignment.Left
 local KeyInput = Instance.new("TextBox", Frame)
 KeyInput.Size = UDim2.new(1, -40, 0, 35)
@@ -307,7 +377,7 @@ end)
 VerifyBtn.MouseLeave:Connect(function()
     VerifyBtn.BackgroundColor3 = Color3.fromRGB(100, 255, 100)
 end)
-notify("🚀 Sistema Iniciado", "Mini Key System Test cargado", 5)
+notify("🚀 Sistema Iniciado", "HWID: " .. universalHwid:sub(1, 16) .. "...", 5)
 print("=== MINI KEY SYSTEM TEST ===")
 print("HWID:", universalHwid)
 print("Service ID:", SERVICE_ID)
