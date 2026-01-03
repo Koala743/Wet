@@ -59,51 +59,12 @@ local function generateNonce()
     end
     return nonce
 end
-local function sha256(str)
-    local bit32 = bit32 or bit
-    local function rshift(x, n) return math.floor(x / 2^n) end
-    local function lshift(x, n) return (x * 2^n) % 4294967296 end
-    local function bxor(a, b)
-        local result = 0
-        local bit = 1
-        for i = 1, 32 do
-            if (a % 2 ~= b % 2) then
-                result = result + bit
-            end
-            a = math.floor(a / 2)
-            b = math.floor(b / 2)
-            bit = bit * 2
-        end
-        return result
+local function simpleHash(str)
+    local hash = 0
+    for i = 1, #str do
+        hash = ((hash * 31) + string.byte(str, i)) % 4294967296
     end
-    local h = {0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19}
-    local k = {0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5}
-    local len = #str
-    local msg = str .. string.char(0x80) .. string.rep(string.char(0), (56 - len - 1) % 64)
-    msg = msg .. string.char(0, 0, 0, 0, rshift(len * 8, 32), rshift(len * 8, 24) % 256, rshift(len * 8, 16) % 256, rshift(len * 8, 8) % 256, (len * 8) % 256)
-    for chunk = 1, #msg, 64 do
-        local w = {}
-        for i = 1, 16 do
-            local pos = chunk + (i - 1) * 4
-            w[i] = lshift(string.byte(msg, pos), 24) + lshift(string.byte(msg, pos + 1), 16) + lshift(string.byte(msg, pos + 2), 8) + string.byte(msg, pos + 3)
-        end
-        local a, b, c, d, e, f, g, hh = h[1], h[2], h[3], h[4], h[5], h[6], h[7], h[8]
-        for i = 1, 8 do
-            local t1 = hh + k[i] + w[i]
-            local t2 = bxor(rshift(a, 2), rshift(a, 13))
-            hh = g
-            g = f
-            f = e
-            e = (d + t1) % 4294967296
-            d = c
-            c = b
-            b = a
-            a = (t1 + t2) % 4294967296
-        end
-        h[1] = (h[1] + a) % 4294967296
-        h[2] = (h[2] + b) % 4294967296
-    end
-    return string.format("%08x%08x%08x%08x", h[1], h[2], h[3], h[4])
+    return string.format("%x", hash)
 end
 local function makeRequest(url, method, body, retries)
     retries = retries or MAX_RETRIES
@@ -163,33 +124,46 @@ local function generateLinkDirect(host)
     local hwid = getHwid()
     local timestamp = tostring(os.time())
     local nonce = generateNonce()
-    local identifier = sha256(hwid)
-    local body = {
-        service = SERVICE_ID,
-        identifier = identifier,
-        timestamp = tonumber(timestamp),
-        nonce = nonce,
-        hwid = hwid
+    local identifier = simpleHash(hwid .. timestamp)
+    local bodyVariants = {
+        {
+            service = SERVICE_ID,
+            identifier = identifier,
+            timestamp = tonumber(timestamp),
+            nonce = nonce
+        },
+        {
+            service = SERVICE_ID,
+            identifier = hwid,
+            nonce = nonce
+        },
+        {
+            service = SERVICE_ID,
+            hwid = hwid,
+            identifier = identifier
+        }
     }
-    local endpoints = {"public/start", "v1/start", "api/start"}
-    for _, endpoint in ipairs(endpoints) do
-        local url = host .. endpoint
-        local response, err = makeRequest(url, "POST", body, 3)
-        if response and response.Body then
-            local ok, data = pcall(function()
-                return HttpService:JSONDecode(response.Body)
-            end)
-            if ok and data then
-                if data.success and data.data and data.data.url then
-                    return data.data.url, nil
-                elseif data.url then
-                    return data.url, nil
-                elseif data.link then
-                    return data.link, nil
+    local endpoints = {"public/start", "v1/start", "api/start", "start"}
+    for _, body in ipairs(bodyVariants) do
+        for _, endpoint in ipairs(endpoints) do
+            local url = host .. endpoint
+            local response, err = makeRequest(url, "POST", body, 2)
+            if response and response.Body then
+                local ok, data = pcall(function()
+                    return HttpService:JSONDecode(response.Body)
+                end)
+                if ok and data then
+                    if data.success and data.data and data.data.url then
+                        return data.data.url, nil
+                    elseif data.url then
+                        return data.url, nil
+                    elseif data.link then
+                        return data.link, nil
+                    end
                 end
             end
+            task.wait(0.3)
         end
-        task.wait(0.5)
     end
     return nil, "No se pudo generar el link"
 end
@@ -197,7 +171,7 @@ local function generateLink()
     notify("🔍 Diagnóstico", "Probando " .. #HOSTS .. " servidores...", 3)
     local host = findWorkingHost()
     if not host then
-        notify("❌ Error Fatal", "Todos los servidores están caídos. Intenta más tarde.", 8)
+        notify("❌ Error Fatal", "Todos los servidores están caídos", 8)
         return nil, "Sin servidores disponibles"
     end
     notify("✅ Servidor OK", "Generando link...", 3)
