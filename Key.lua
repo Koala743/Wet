@@ -11,10 +11,12 @@ local CONFIG = {
         "https://api.platoboost.net"
     },
     KeyDuration = 1200,
-    MaxRetries = 3
+    MaxRetries = 5,
+    RetryDelay = 2
 }
 
 local currentSession = nil
+local httpRequest = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
 
 local function createUI()
     local screenGui = Instance.new("ScreenGui")
@@ -160,36 +162,103 @@ local function generateGUID()
     end)
 end
 
-local function makeRequest(url, method, body)
-    local attempts = 0
-    
-    while attempts < CONFIG.MaxRetries do
-        attempts = attempts + 1
-        
-        local success, result = pcall(function()
-            local requestData = {
-                Url = url,
-                Method = method or "GET",
-                Headers = {
-                    ["Content-Type"] = "application/json",
-                    ["Accept"] = "application/json"
-                }
+local function makeRequestHttpService(url, method, body)
+    local success, result = pcall(function()
+        local requestData = {
+            Url = url,
+            Method = method or "GET",
+            Headers = {
+                ["Content-Type"] = "application/json",
+                ["Accept"] = "application/json",
+                ["User-Agent"] = "Roblox/WinInet"
             }
-            
-            if body then
-                requestData.Body = body
-            end
-            
-            return HttpService:RequestAsync(requestData)
-        end)
+        }
         
-        if success and result.Success and result.StatusCode == 200 then
-            return true, result
+        if body then
+            requestData.Body = body
         end
         
-        if attempts < CONFIG.MaxRetries then
-            task.wait(1)
+        return HttpService:RequestAsync(requestData)
+    end)
+    
+    if success and result and result.Success and result.StatusCode == 200 then
+        return true, result.Body
+    end
+    
+    return false, nil
+end
+
+local function makeRequestHttp(url, method, body)
+    if not httpRequest then
+        return false, nil
+    end
+    
+    local success, result = pcall(function()
+        local requestData = {
+            Url = url,
+            Method = method or "GET",
+            Headers = {
+                ["Content-Type"] = "application/json",
+                ["Accept"] = "application/json",
+                ["User-Agent"] = "Mozilla/5.0"
+            }
+        }
+        
+        if body then
+            requestData.Body = body
         end
+        
+        return httpRequest(requestData)
+    end)
+    
+    if success and result and result.Success and result.StatusCode == 200 then
+        return true, result.Body
+    end
+    
+    return false, nil
+end
+
+local function makeRequestGetFenv(url, method, body)
+    local success, result = pcall(function()
+        local req = getfenv().request or getfenv().http_request or getfenv().syn.request
+        if not req then return nil end
+        
+        local requestData = {
+            Url = url,
+            Method = method or "GET",
+            Headers = {
+                ["Content-Type"] = "application/json",
+                ["Accept"] = "application/json"
+            }
+        }
+        
+        if body then
+            requestData.Body = body
+        end
+        
+        return req(requestData)
+    end)
+    
+    if success and result and result.Success and result.StatusCode == 200 then
+        return true, result.Body
+    end
+    
+    return false, nil
+end
+
+local function makeRequest(url, method, body, attemptNum)
+    local methods = {
+        makeRequestHttpService,
+        makeRequestHttp,
+        makeRequestGetFenv
+    }
+    
+    for _, requestMethod in ipairs(methods) do
+        local success, responseBody = requestMethod(url, method, body)
+        if success then
+            return true, responseBody
+        end
+        task.wait(0.3)
     end
     
     return false, nil
@@ -197,35 +266,48 @@ end
 
 local function generateLink()
     local identifier = generateGUID()
+    local timestamp = tostring(os.time())
     
-    for _, host in ipairs(CONFIG.ApiHosts) do
-        local url = host .. "/public/start?t=" .. tostring(os.time())
-        local body = HttpService:JSONEncode({
-            service = CONFIG.ServiceId,
-            identifier = identifier
-        })
-        
-        local success, response = makeRequest(url, "POST", body)
-        
-        if success then
-            local parseSuccess, data = pcall(function()
-                return HttpService:JSONDecode(response.Body)
-            end)
+    for attemptNum = 1, CONFIG.MaxRetries do
+        for hostIndex, host in ipairs(CONFIG.ApiHosts) do
+            local url = host .. "/public/start?t=" .. timestamp .. "&attempt=" .. attemptNum
+            local body = HttpService:JSONEncode({
+                service = CONFIG.ServiceId,
+                identifier = identifier,
+                timestamp = timestamp
+            })
             
-            if parseSuccess and data and data.success and data.data and data.data.url then
-                currentSession = {
-                    identifier = identifier,
-                    url = data.data.url,
-                    timestamp = os.time(),
-                    expiry = os.time() + CONFIG.KeyDuration
-                }
-                return data.data.url
+            print("Intento " .. attemptNum .. "/" .. CONFIG.MaxRetries .. " - Host " .. hostIndex)
+            
+            local success, responseBody = makeRequest(url, "POST", body, attemptNum)
+            
+            if success and responseBody then
+                local parseSuccess, data = pcall(function()
+                    return HttpService:JSONDecode(responseBody)
+                end)
+                
+                if parseSuccess and data and data.success and data.data and data.data.url then
+                    currentSession = {
+                        identifier = identifier,
+                        url = data.data.url,
+                        timestamp = os.time(),
+                        expiry = os.time() + CONFIG.KeyDuration
+                    }
+                    print("Enlace generado exitosamente!")
+                    return data.data.url
+                end
             end
+            
+            task.wait(0.5)
         end
         
-        task.wait(0.5)
+        if attemptNum < CONFIG.MaxRetries then
+            print("Esperando " .. CONFIG.RetryDelay .. " segundos antes de reintentar...")
+            task.wait(CONFIG.RetryDelay)
+        end
     end
     
+    print("Error: No se pudo generar el enlace después de " .. CONFIG.MaxRetries .. " intentos")
     return nil
 end
 
@@ -241,31 +323,42 @@ local function verifyKey(key)
     
     local nonce = tostring(os.time()) .. tostring(math.random(1000, 9999))
     
-    for _, host in ipairs(CONFIG.ApiHosts) do
-        local url = string.format(
-            "%s/public/whitelist/%d?identifier=%s&key=%s&nonce=%s",
-            host,
-            CONFIG.ServiceId,
-            HttpService:UrlEncode(currentSession.identifier),
-            HttpService:UrlEncode(key),
-            nonce
-        )
-        
-        local success, response = makeRequest(url, "GET")
-        
-        if success then
-            local parseSuccess, data = pcall(function()
-                return HttpService:JSONDecode(response.Body)
-            end)
+    for attemptNum = 1, CONFIG.MaxRetries do
+        for hostIndex, host in ipairs(CONFIG.ApiHosts) do
+            local url = string.format(
+                "%s/public/whitelist/%d?identifier=%s&key=%s&nonce=%s&attempt=%d",
+                host,
+                CONFIG.ServiceId,
+                HttpService:UrlEncode(currentSession.identifier),
+                HttpService:UrlEncode(key),
+                nonce,
+                attemptNum
+            )
             
-            if parseSuccess and data and data.success and data.data and data.data.valid == true then
-                return true, "Key válida"
+            print("Verificando - Intento " .. attemptNum .. "/" .. CONFIG.MaxRetries .. " - Host " .. hostIndex)
+            
+            local success, responseBody = makeRequest(url, "GET", nil, attemptNum)
+            
+            if success and responseBody then
+                local parseSuccess, data = pcall(function()
+                    return HttpService:JSONDecode(responseBody)
+                end)
+                
+                if parseSuccess and data and data.success and data.data and data.data.valid == true then
+                    print("Key verificada exitosamente!")
+                    return true, "Key válida"
+                end
             end
+            
+            task.wait(0.5)
         end
         
-        task.wait(0.5)
+        if attemptNum < CONFIG.MaxRetries then
+            task.wait(1)
+        end
     end
     
+    print("Error: Key inválida o no se pudo verificar")
     return false, "Key inválida"
 end
 
@@ -304,12 +397,17 @@ local function showNotif(text, color)
     gui:Destroy()
 end
 
+print("=== SISTEMA DE KEYS INICIADO ===")
+print("Executor detectado: " .. (identifyexecutor and identifyexecutor() or "Desconocido"))
+print("HttpService disponible: " .. tostring(HttpService ~= nil))
+print("http_request disponible: " .. tostring(httpRequest ~= nil))
+
 local gui, generateBtn, keyInput, verifyBtn, statusLabel, linkBox = createUI()
 
 generateBtn.MouseButton1Click:Connect(function()
     generateBtn.BackgroundColor3 = Color3.fromRGB(70, 80, 200)
     generateBtn.Text = "Generando..."
-    statusLabel.Text = "Conectando al servidor..."
+    statusLabel.Text = "Conectando...\nIntento 1/" .. CONFIG.MaxRetries
     
     task.spawn(function()
         task.wait(0.3)
@@ -329,11 +427,11 @@ generateBtn.MouseButton1Click:Connect(function()
             
             showNotif("Mantén presionado para copiar", Color3.fromRGB(67, 181, 129))
         else
-            statusLabel.Text = "❌ Error de conexión\nVerifica tu internet"
+            statusLabel.Text = "❌ Error de conexión\n\nNo se pudo conectar después\nde " .. CONFIG.MaxRetries .. " intentos"
             statusLabel.TextColor3 = Color3.fromRGB(237, 66, 69)
             generateBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
             generateBtn.Text = "Obtener Key"
-            showNotif("Error. Reintenta", Color3.fromRGB(237, 66, 69))
+            showNotif("Error. Verifica tu internet", Color3.fromRGB(237, 66, 69))
         end
     end)
 end)
@@ -348,7 +446,7 @@ verifyBtn.MouseButton1Click:Connect(function()
     
     verifyBtn.BackgroundColor3 = Color3.fromRGB(50, 140, 100)
     verifyBtn.Text = "Verificando..."
-    statusLabel.Text = "Verificando key..."
+    statusLabel.Text = "Verificando key...\nIntento 1/" .. CONFIG.MaxRetries
     
     task.spawn(function()
         task.wait(0.3)
@@ -363,7 +461,7 @@ verifyBtn.MouseButton1Click:Connect(function()
             task.wait(1)
             gui:Destroy()
             
-            print("KEY VERIFICADA - EJECUTANDO SCRIPT")
+            print("=== KEY VERIFICADA - EJECUTANDO SCRIPT ===")
             
         else
             statusLabel.Text = "❌ " .. message
@@ -375,4 +473,4 @@ verifyBtn.MouseButton1Click:Connect(function()
     end)
 end)
 
-print("Sistema de Keys iniciado")
+print("Sistema de Keys listo - Presiona el botón para comenzar")
