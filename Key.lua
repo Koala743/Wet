@@ -8,7 +8,9 @@ local CONFIG = {
     ApiHosts = {
         "https://api.platoboost.com",
         "https://api.platoboost.net",
-        "https://api.platoboost.app"
+        "https://api.platoboost.app",
+        "https://gateway.platoboost.com",
+        "https://cdn.platoboost.com"
     }
 }
 
@@ -301,7 +303,7 @@ end
 local function pickHost()
     addLog("Seleccionando mejor host...", "info")
     
-    local testOrder = {1, 2, 3}
+    local testOrder = {1, 2, 3, 4, 5}
     for i = #testOrder, 2, -1 do
         local j = math.random(i)
         testOrder[i], testOrder[j] = testOrder[j], testOrder[i]
@@ -342,7 +344,7 @@ local function pickHost()
             end
         end
         
-        task.wait(0.5)
+        task.wait(0.3)
     end
     
     addLog("Usando host por defecto: " .. CONFIG.ApiHosts[1], "warning")
@@ -351,6 +353,7 @@ end
 
 local selectedHost = pickHost()
 
+-- NUEVO: Método 1 - request() POST estándar
 local function tryRequestMethod1(url, body)
     if not fRequest then return false, nil end
     
@@ -375,6 +378,7 @@ local function tryRequestMethod1(url, body)
     return false, response
 end
 
+-- NUEVO: Método 2 - HttpService:PostAsync()
 local function tryRequestMethod2(url, body)
     addLog("Método 2: HttpService:PostAsync()", "info")
     local success, response = pcall(function()
@@ -389,6 +393,7 @@ local function tryRequestMethod2(url, body)
     return false, response
 end
 
+-- NUEVO: Método 3 - HttpService:RequestAsync()
 local function tryRequestMethod3(url, body)
     addLog("Método 3: HttpService:RequestAsync()", "info")
     local success, response = pcall(function()
@@ -410,6 +415,7 @@ local function tryRequestMethod3(url, body)
     return false, response
 end
 
+-- NUEVO: Método 4 - request() con User-Agent iOS
 local function tryRequestMethod4(url, body)
     if not fRequest then return false, nil end
     
@@ -435,6 +441,92 @@ local function tryRequestMethod4(url, body)
     return false, response
 end
 
+-- NUEVO: Método 5 - HttpService:GetAsync() con parámetros en URL
+local function tryRequestMethod5(url, body)
+    addLog("Método 5: GET con params en URL", "info")
+    
+    local decoded = HttpService:JSONDecode(body)
+    local params = "?service=" .. tostring(decoded.service) .. "&identifier=" .. tostring(decoded.identifier)
+    local getUrl = url:gsub("/start", "/start" .. params)
+    
+    local success, response = pcall(function()
+        return HttpService:GetAsync(getUrl, true)
+    end)
+    
+    if success and response then
+        addLog("Método 5 exitoso", "success")
+        return true, response
+    end
+    addLog("Método 5 falló: " .. tostring(response), "error")
+    return false, response
+end
+
+-- NUEVO: Método 6 - request() sin Content-Type
+local function tryRequestMethod6(url, body)
+    if not fRequest then return false, nil end
+    
+    addLog("Método 6: request() sin headers complejos", "info")
+    local success, response = pcall(function()
+        return fRequest({
+            Url = url,
+            Method = "POST",
+            Body = body
+        })
+    end)
+    
+    if success and response and response.StatusCode == 200 then
+        addLog("Método 6 exitoso", "success")
+        return true, response.Body
+    end
+    addLog("Método 6 falló: " .. tostring(response), "error")
+    return false, response
+end
+
+-- NUEVO: Método 7 - HttpService:JSONEncode dentro del request
+local function tryRequestMethod7(url, body)
+    if not fRequest then return false, nil end
+    
+    addLog("Método 7: request() con encoding interno", "info")
+    local success, response = pcall(function()
+        local decoded = HttpService:JSONDecode(body)
+        return fRequest({
+            Url = url,
+            Method = "POST",
+            Body = game:GetService("HttpService"):JSONEncode(decoded),
+            Headers = {
+                ["Content-Type"] = "application/json"
+            }
+        })
+    end)
+    
+    if success and response and response.StatusCode == 200 then
+        addLog("Método 7 exitoso", "success")
+        return true, response.Body
+    end
+    addLog("Método 7 falló: " .. tostring(response), "error")
+    return false, response
+end
+
+-- NUEVO: Método 8 - game:HttpGet() legacy
+local function tryRequestMethod8(url, body)
+    addLog("Método 8: Legacy HttpGet", "info")
+    
+    local decoded = HttpService:JSONDecode(body)
+    local params = "?service=" .. tostring(decoded.service) .. "&identifier=" .. tostring(decoded.identifier)
+    local getUrl = url:gsub("/start", "/start" .. params)
+    
+    local success, response = pcall(function()
+        return game:HttpGet(getUrl)
+    end)
+    
+    if success and response then
+        addLog("Método 8 exitoso", "success")
+        return true, response
+    end
+    addLog("Método 8 falló: " .. tostring(response), "error")
+    return false, response
+end
+
 local function generateLink()
     if cachedLink and (os.time() - cachedTime) < 600 then
         addLog("Usando link en caché", "info")
@@ -455,23 +547,30 @@ local function generateLink()
         identifier = identifier
     })
     
+    -- TODOS LOS MÉTODOS EN ORDEN
     local methods = {
         tryRequestMethod1,
         tryRequestMethod4,
         tryRequestMethod2,
-        tryRequestMethod3
+        tryRequestMethod3,
+        tryRequestMethod5,
+        tryRequestMethod6,
+        tryRequestMethod7,
+        tryRequestMethod8
     }
     
     for methodNum, method in ipairs(methods) do
-        addLog("Intentando método " .. methodNum .. "/4", "info")
+        addLog("Intentando método " .. methodNum .. "/" .. #methods, "info")
         local success, responseBody = method(url, requestBody)
         
         if success and responseBody then
             addLog("Respuesta recibida, parseando JSON...", "info")
             
-            local decoded = HttpService:JSONDecode(responseBody)
+            local parseSuccess, decoded = pcall(function()
+                return HttpService:JSONDecode(responseBody)
+            end)
             
-            if decoded.success == true and decoded.data and decoded.data.url then
+            if parseSuccess and decoded.success == true and decoded.data and decoded.data.url then
                 addLog("¡ENLACE GENERADO EXITOSAMENTE!", "success")
                 addLog("URL: " .. decoded.data.url:sub(1, 40) .. "...", "success")
                 
@@ -480,15 +579,16 @@ local function generateLink()
                 
                 return decoded.data.url
             else
-                addLog("Respuesta inválida: " .. tostring(decoded.message), "error")
+                addLog("Respuesta inválida o error en JSON", "error")
             end
         end
         
-        task.wait(0.3)
+        task.wait(0.2)
     end
     
     addLog("Todos los métodos fallaron, probando hosts alternativos...", "warning")
     
+    -- Probar TODOS los hosts alternativos con TODOS los métodos
     for _, fallbackHost in ipairs(CONFIG.ApiHosts) do
         if fallbackHost ~= selectedHost then
             addLog("=== HOST ALTERNATIVO: " .. fallbackHost .. " ===", "info")
@@ -499,9 +599,11 @@ local function generateLink()
                 local success, responseBody = method(fallbackUrl, requestBody)
                 
                 if success and responseBody then
-                    local decoded = HttpService:JSONDecode(responseBody)
+                    local parseSuccess, decoded = pcall(function()
+                        return HttpService:JSONDecode(responseBody)
+                    end)
                     
-                    if decoded.success == true and decoded.data and decoded.data.url then
+                    if parseSuccess and decoded.success == true and decoded.data and decoded.data.url then
                         addLog("¡Éxito con host alternativo!", "success")
                         
                         cachedLink = decoded.data.url
@@ -512,12 +614,16 @@ local function generateLink()
                     end
                 end
                 
-                task.wait(0.3)
+                task.wait(0.2)
             end
         end
     end
     
     addLog("=== ERROR: NO SE PUDO GENERAR ENLACE ===", "error")
+    addLog("Posibles causas:", "warning")
+    addLog("1. Problemas de red/DNS", "warning")
+    addLog("2. Firewall/ISP bloqueando", "warning")
+    addLog("3. Intenta con VPN (1.1.1.1)", "warning")
     return nil
 end
 
@@ -561,6 +667,7 @@ end
 addLog("=== SISTEMA INICIADO ===", "success")
 addLog("Executor: " .. (identifyexecutor and identifyexecutor() or "Desconocido"), "info")
 addLog("Platform: " .. (game:GetService("UserInputService").TouchEnabled and "Mobile/Tablet" or "PC"), "info")
+addLog("Versión: REFORZADA v2.0 (8 métodos)", "success")
 
 local gui, generateBtn, statusLabel, linkBox = createUI()
 
@@ -568,7 +675,7 @@ generateBtn.MouseButton1Click:Connect(function()
     generateBtn.BackgroundColor3 = Color3.fromRGB(70, 80, 200)
     generateBtn.Text = "Generando..."
     generateBtn.Active = false
-    statusLabel.Text = "Conectando al servidor..."
+    statusLabel.Text = "Conectando al servidor...\nProbando múltiples métodos..."
     
     addLog("Usuario presionó botón de generar", "info")
     
@@ -598,13 +705,13 @@ generateBtn.MouseButton1Click:Connect(function()
             
             showNotif("¡Enlace generado!", Color3.fromRGB(67, 181, 129))
         else
-            statusLabel.Text = "❌ Error de conexión\n\nRevisa ventana de logs"
+            statusLabel.Text = "❌ Error de conexión\n\nRevisa logs / Prueba VPN"
             statusLabel.TextColor3 = Color3.fromRGB(237, 66, 69)
             generateBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
             generateBtn.Text = "Reintentar"
             generateBtn.Active = true
             
-            showNotif("Error - Ver logs", Color3.fromRGB(237, 66, 69))
+            showNotif("Error - Ver logs o usar VPN", Color3.fromRGB(237, 66, 69))
         end
     end)
 end)
