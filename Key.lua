@@ -10,7 +10,8 @@ local CONFIG = {
         "https://api.platoboost.app",
         "https://api.platoboost.net"
     },
-    KeyDuration = 1200
+    KeyDuration = 1200,
+    MaxRetries = 3
 }
 
 local currentSession = nil
@@ -146,26 +147,9 @@ local function createUI()
     verifyBtnCorner.CornerRadius = UDim.new(0, 8)
     verifyBtnCorner.Parent = verifyBtn
     
-    local retryBtn = Instance.new("TextButton")
-    retryBtn.Name = "RetryBtn"
-    retryBtn.Size = UDim2.new(1, -20, 0, 35)
-    retryBtn.Position = UDim2.new(0, 10, 0, 295)
-    retryBtn.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
-    retryBtn.Text = "Reintentar Conexión"
-    retryBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    retryBtn.TextSize = 13
-    retryBtn.Font = Enum.Font.GothamBold
-    retryBtn.AutoButtonColor = false
-    retryBtn.Visible = false
-    retryBtn.Parent = mainFrame
-    
-    local retryBtnCorner = Instance.new("UICorner")
-    retryBtnCorner.CornerRadius = UDim.new(0, 8)
-    retryBtnCorner.Parent = retryBtn
-    
     screenGui.Parent = playerGui
     
-    return screenGui, generateBtn, keyInput, verifyBtn, statusLabel, linkBox, retryBtn
+    return screenGui, generateBtn, keyInput, verifyBtn, statusLabel, linkBox
 end
 
 local function generateGUID()
@@ -176,60 +160,56 @@ local function generateGUID()
     end)
 end
 
-local function safeRequest(url, method, body, timeout)
-    timeout = timeout or 10
-    local completed = false
-    local result = nil
+local function makeRequest(url, method, body)
+    local attempts = 0
     
-    task.spawn(function()
-        local success, response = pcall(function()
-            return game:HttpGet(url, true)
+    while attempts < CONFIG.MaxRetries do
+        attempts = attempts + 1
+        
+        local success, result = pcall(function()
+            local requestData = {
+                Url = url,
+                Method = method or "GET",
+                Headers = {
+                    ["Content-Type"] = "application/json",
+                    ["Accept"] = "application/json"
+                }
+            }
+            
+            if body then
+                requestData.Body = body
+            end
+            
+            return HttpService:RequestAsync(requestData)
         end)
         
-        if success then
-            result = {Success = true, Body = response, StatusCode = 200}
-        else
-            result = {Success = false, StatusCode = 0}
+        if success and result.Success and result.StatusCode == 200 then
+            return true, result
         end
-        completed = true
-    end)
-    
-    local startTime = tick()
-    while not completed and (tick() - startTime) < timeout do
-        task.wait(0.1)
+        
+        if attempts < CONFIG.MaxRetries then
+            task.wait(1)
+        end
     end
     
-    return result
+    return false, nil
 end
 
 local function generateLink()
     local identifier = generateGUID()
-    local timestamp = tostring(os.time())
     
-    for i, host in ipairs(CONFIG.ApiHosts) do
-        local url = host .. "/public/start?t=" .. timestamp
+    for _, host in ipairs(CONFIG.ApiHosts) do
+        local url = host .. "/public/start?t=" .. tostring(os.time())
+        local body = HttpService:JSONEncode({
+            service = CONFIG.ServiceId,
+            identifier = identifier
+        })
         
-        local success, response = pcall(function()
-            return HttpService:JSONEncode({
-                service = CONFIG.ServiceId,
-                identifier = identifier
-            })
-        end)
+        local success, response = makeRequest(url, "POST", body)
         
-        if not success then
-            continue
-        end
-        
-        local requestBody = response
-        local fullUrl = url
-        
-        local reqSuccess, reqResponse = pcall(function()
-            return HttpService:PostAsync(fullUrl, requestBody, Enum.HttpContentType.ApplicationJson, false)
-        end)
-        
-        if reqSuccess and reqResponse then
+        if success then
             local parseSuccess, data = pcall(function()
-                return HttpService:JSONDecode(reqResponse)
+                return HttpService:JSONDecode(response.Body)
             end)
             
             if parseSuccess and data and data.success and data.data and data.data.url then
@@ -243,9 +223,7 @@ local function generateLink()
             end
         end
         
-        if i < #CONFIG.ApiHosts then
-            task.wait(2)
-        end
+        task.wait(0.5)
     end
     
     return nil
@@ -263,7 +241,7 @@ local function verifyKey(key)
     
     local nonce = tostring(os.time()) .. tostring(math.random(1000, 9999))
     
-    for i, host in ipairs(CONFIG.ApiHosts) do
+    for _, host in ipairs(CONFIG.ApiHosts) do
         local url = string.format(
             "%s/public/whitelist/%d?identifier=%s&key=%s&nonce=%s",
             host,
@@ -273,13 +251,11 @@ local function verifyKey(key)
             nonce
         )
         
-        local success, response = pcall(function()
-            return HttpService:GetAsync(url, false)
-        end)
+        local success, response = makeRequest(url, "GET")
         
-        if success and response then
+        if success then
             local parseSuccess, data = pcall(function()
-                return HttpService:JSONDecode(response)
+                return HttpService:JSONDecode(response.Body)
             end)
             
             if parseSuccess and data and data.success and data.data and data.data.valid == true then
@@ -287,9 +263,7 @@ local function verifyKey(key)
             end
         end
         
-        if i < #CONFIG.ApiHosts then
-            task.wait(2)
-        end
+        task.wait(0.5)
     end
     
     return false, "Key inválida"
@@ -330,16 +304,15 @@ local function showNotif(text, color)
     gui:Destroy()
 end
 
-local gui, generateBtn, keyInput, verifyBtn, statusLabel, linkBox, retryBtn = createUI()
+local gui, generateBtn, keyInput, verifyBtn, statusLabel, linkBox = createUI()
 
-local function attemptGenerate()
+generateBtn.MouseButton1Click:Connect(function()
     generateBtn.BackgroundColor3 = Color3.fromRGB(70, 80, 200)
     generateBtn.Text = "Generando..."
-    statusLabel.Text = "Conectando al servidor...\nEsto puede tardar un momento"
-    retryBtn.Visible = false
+    statusLabel.Text = "Conectando al servidor..."
     
     task.spawn(function()
-        task.wait(0.5)
+        task.wait(0.3)
         
         local link = generateLink()
         
@@ -347,7 +320,7 @@ local function attemptGenerate()
             linkBox.Text = link
             linkBox.Visible = true
             
-            statusLabel.Text = "✅ Enlace generado!\n\nMantén presionado el enlace\npara copiarlo y ábrelo en Safari"
+            statusLabel.Text = "✅ Enlace generado!\n\nMantén presionado el enlace\npara copiarlo"
             statusLabel.TextColor3 = Color3.fromRGB(67, 181, 129)
             
             generateBtn.Visible = false
@@ -356,21 +329,13 @@ local function attemptGenerate()
             
             showNotif("Mantén presionado para copiar", Color3.fromRGB(67, 181, 129))
         else
-            statusLabel.Text = "❌ Error de conexión\n\nPosibles causas:\n- Internet inestable\n- Límite de solicitudes\n- Servidor ocupado"
+            statusLabel.Text = "❌ Error de conexión\nVerifica tu internet"
             statusLabel.TextColor3 = Color3.fromRGB(237, 66, 69)
             generateBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
             generateBtn.Text = "Obtener Key"
-            retryBtn.Visible = true
-            showNotif("Error. Espera 30s y reintenta", Color3.fromRGB(237, 66, 69))
+            showNotif("Error. Reintenta", Color3.fromRGB(237, 66, 69))
         end
     end)
-end
-
-generateBtn.MouseButton1Click:Connect(attemptGenerate)
-
-retryBtn.MouseButton1Click:Connect(function()
-    retryBtn.Visible = false
-    attemptGenerate()
 end)
 
 verifyBtn.MouseButton1Click:Connect(function()
@@ -383,10 +348,10 @@ verifyBtn.MouseButton1Click:Connect(function()
     
     verifyBtn.BackgroundColor3 = Color3.fromRGB(50, 140, 100)
     verifyBtn.Text = "Verificando..."
-    statusLabel.Text = "Verificando key...\nEspera un momento"
+    statusLabel.Text = "Verificando key..."
     
     task.spawn(function()
-        task.wait(0.5)
+        task.wait(0.3)
         
         local valid, message = verifyKey(key)
         
@@ -395,13 +360,13 @@ verifyBtn.MouseButton1Click:Connect(function()
             statusLabel.TextColor3 = Color3.fromRGB(67, 181, 129)
             showNotif("¡Verificado!", Color3.fromRGB(67, 181, 129))
             
-            task.wait(1.5)
+            task.wait(1)
             gui:Destroy()
             
             print("KEY VERIFICADA - EJECUTANDO SCRIPT")
             
         else
-            statusLabel.Text = "❌ " .. message .. "\n\nVerifica que copiaste\nla key completa"
+            statusLabel.Text = "❌ " .. message
             statusLabel.TextColor3 = Color3.fromRGB(237, 66, 69)
             verifyBtn.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
             verifyBtn.Text = "Verificar"
