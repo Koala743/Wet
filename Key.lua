@@ -9,14 +9,10 @@ local CONFIG = {
         "https://api.platoboost.com",
         "https://api.platoboost.app",
         "https://api.platoboost.net"
-    },
-    KeyDuration = 1200,
-    MaxRetries = 5,
-    RetryDelay = 2
+    }
 }
 
-local currentSession = nil
-local httpRequest = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
+local httpRequest = (syn and syn.request) or http_request or (http and http.request) or request or (fluxus and fluxus.request)
 
 local function createUI()
     local screenGui = Instance.new("ScreenGui")
@@ -25,8 +21,8 @@ local function createUI()
     screenGui.IgnoreGuiInset = true
     
     local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 300, 0, 340)
-    mainFrame.Position = UDim2.new(0.5, -150, 0.5, -170)
+    mainFrame.Size = UDim2.new(0, 300, 0, 280)
+    mainFrame.Position = UDim2.new(0.5, -150, 0.5, -140)
     mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
     mainFrame.BorderSizePixel = 0
     mainFrame.Active = true
@@ -57,7 +53,7 @@ local function createUI()
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, 0, 1, 0)
     title.BackgroundTransparency = 1
-    title.Text = "🔑 Verificación"
+    title.Text = "🔑 Obtener Key"
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
     title.TextSize = 18
     title.Font = Enum.Font.GothamBold
@@ -65,21 +61,20 @@ local function createUI()
     
     local statusLabel = Instance.new("TextLabel")
     statusLabel.Name = "Status"
-    statusLabel.Size = UDim2.new(1, -20, 0, 55)
+    statusLabel.Size = UDim2.new(1, -20, 0, 40)
     statusLabel.Position = UDim2.new(0, 10, 0, 60)
     statusLabel.BackgroundTransparency = 1
-    statusLabel.Text = "1. Toca Obtener Key\n2. Copia el enlace\n3. Completa tareas\n4. Pega la key"
+    statusLabel.Text = "Presiona el botón para obtener tu enlace"
     statusLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
-    statusLabel.TextSize = 11
+    statusLabel.TextSize = 12
     statusLabel.Font = Enum.Font.Gotham
     statusLabel.TextWrapped = true
-    statusLabel.TextYAlignment = Enum.TextYAlignment.Top
     statusLabel.Parent = mainFrame
     
     local linkBox = Instance.new("TextBox")
     linkBox.Name = "LinkBox"
-    linkBox.Size = UDim2.new(1, -20, 0, 60)
-    linkBox.Position = UDim2.new(0, 10, 0, 125)
+    linkBox.Size = UDim2.new(1, -20, 0, 80)
+    linkBox.Position = UDim2.new(0, 10, 0, 110)
     linkBox.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
     linkBox.Text = ""
     linkBox.TextColor3 = Color3.fromRGB(100, 200, 255)
@@ -98,12 +93,12 @@ local function createUI()
     
     local generateBtn = Instance.new("TextButton")
     generateBtn.Name = "GenerateBtn"
-    generateBtn.Size = UDim2.new(1, -20, 0, 45)
-    generateBtn.Position = UDim2.new(0, 10, 0, 125)
+    generateBtn.Size = UDim2.new(1, -20, 0, 50)
+    generateBtn.Position = UDim2.new(0, 10, 0, 210)
     generateBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
-    generateBtn.Text = "Obtener Key"
+    generateBtn.Text = "Generar Enlace"
     generateBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    generateBtn.TextSize = 15
+    generateBtn.TextSize = 16
     generateBtn.Font = Enum.Font.GothamBold
     generateBtn.AutoButtonColor = false
     generateBtn.Parent = mainFrame
@@ -112,155 +107,153 @@ local function createUI()
     genBtnCorner.CornerRadius = UDim.new(0, 8)
     genBtnCorner.Parent = generateBtn
     
-    local keyInput = Instance.new("TextBox")
-    keyInput.Name = "KeyInput"
-    keyInput.Size = UDim2.new(1, -20, 0, 45)
-    keyInput.Position = UDim2.new(0, 10, 0, 195)
-    keyInput.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-    keyInput.PlaceholderText = "Pega tu key aquí"
-    keyInput.PlaceholderColor3 = Color3.fromRGB(120, 120, 140)
-    keyInput.Text = ""
-    keyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-    keyInput.TextSize = 13
-    keyInput.Font = Enum.Font.Gotham
-    keyInput.ClearTextOnFocus = false
-    keyInput.TextXAlignment = Enum.TextXAlignment.Center
-    keyInput.Visible = false
-    keyInput.Parent = mainFrame
-    
-    local keyInputCorner = Instance.new("UICorner")
-    keyInputCorner.CornerRadius = UDim.new(0, 8)
-    keyInputCorner.Parent = keyInput
-    
-    local verifyBtn = Instance.new("TextButton")
-    verifyBtn.Name = "VerifyBtn"
-    verifyBtn.Size = UDim2.new(1, -20, 0, 45)
-    verifyBtn.Position = UDim2.new(0, 10, 0, 250)
-    verifyBtn.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
-    verifyBtn.Text = "Verificar"
-    verifyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    verifyBtn.TextSize = 15
-    verifyBtn.Font = Enum.Font.GothamBold
-    verifyBtn.AutoButtonColor = false
-    verifyBtn.Visible = false
-    verifyBtn.Parent = mainFrame
-    
-    local verifyBtnCorner = Instance.new("UICorner")
-    verifyBtnCorner.CornerRadius = UDim.new(0, 8)
-    verifyBtnCorner.Parent = verifyBtn
-    
     screenGui.Parent = playerGui
     
-    return screenGui, generateBtn, keyInput, verifyBtn, statusLabel, linkBox
+    return screenGui, generateBtn, statusLabel, linkBox
 end
 
 local function generateGUID()
-    local template = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
-    return string.gsub(template, "[xy]", function(c)
-        local v = (c == "x") and math.random(0, 15) or math.random(8, 11)
-        return string.format("%x", v)
-    end)
-end
-
-local function makeRequestHttpService(url, method, body)
-    local success, result = pcall(function()
-        local requestData = {
-            Url = url,
-            Method = method or "GET",
-            Headers = {
-                ["Content-Type"] = "application/json",
-                ["Accept"] = "application/json",
-                ["User-Agent"] = "Roblox/WinInet"
-            }
-        }
-        
-        if body then
-            requestData.Body = body
-        end
-        
-        return HttpService:RequestAsync(requestData)
-    end)
+    local chars = "0123456789abcdef"
+    local guid = ""
     
-    if success and result and result.Success and result.StatusCode == 200 then
-        return true, result.Body
+    for i = 1, 36 do
+        if i == 9 or i == 14 or i == 19 or i == 24 then
+            guid = guid .. "-"
+        elseif i == 15 then
+            guid = guid .. "4"
+        elseif i == 20 then
+            local rand = math.random(8, 11)
+            guid = guid .. chars:sub(rand, rand)
+        else
+            local rand = math.random(1, 16)
+            guid = guid .. chars:sub(rand, rand)
+        end
     end
     
+    return guid
+end
+
+local function tryHttpServiceGET(url)
+    local success, response = pcall(function()
+        return game:HttpGet(url)
+    end)
+    
+    if success and response then
+        return true, response
+    end
     return false, nil
 end
 
-local function makeRequestHttp(url, method, body)
+local function tryHttpServicePOST(url, body)
+    local success, response = pcall(function()
+        return HttpService:RequestAsync({
+            Url = url,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json",
+                ["Accept"] = "application/json"
+            },
+            Body = body
+        })
+    end)
+    
+    if success and response and response.Success then
+        return true, response.Body
+    end
+    return false, nil
+end
+
+local function tryHttpServiceJSONEncode(url, body)
+    local success, response = pcall(function()
+        return HttpService:PostAsync(url, body, Enum.HttpContentType.ApplicationJson, false)
+    end)
+    
+    if success and response then
+        return true, response
+    end
+    return false, nil
+end
+
+local function tryCustomHttpRequest(url, body)
     if not httpRequest then
         return false, nil
     end
     
-    local success, result = pcall(function()
-        local requestData = {
+    local success, response = pcall(function()
+        return httpRequest({
             Url = url,
-            Method = method or "GET",
+            Method = "POST",
             Headers = {
                 ["Content-Type"] = "application/json",
                 ["Accept"] = "application/json",
-                ["User-Agent"] = "Mozilla/5.0"
-            }
-        }
-        
-        if body then
-            requestData.Body = body
-        end
-        
-        return httpRequest(requestData)
+                ["User-Agent"] = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15"
+            },
+            Body = body
+        })
     end)
     
-    if success and result and result.Success and result.StatusCode == 200 then
-        return true, result.Body
+    if success and response and response.Success and response.StatusCode == 200 then
+        return true, response.Body
     end
-    
     return false, nil
 end
 
-local function makeRequestGetFenv(url, method, body)
-    local success, result = pcall(function()
-        local req = getfenv().request or getfenv().http_request or getfenv().syn.request
-        if not req then return nil end
+local function tryGetFenvRequest(url, body)
+    local success, response = pcall(function()
+        local env = getfenv()
+        local req = env.request or env.http_request or env.syn_request
         
-        local requestData = {
+        if not req then
+            return nil
+        end
+        
+        return req({
             Url = url,
-            Method = method or "GET",
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = body
+        })
+    end)
+    
+    if success and response and response.Success then
+        return true, response.Body
+    end
+    return false, nil
+end
+
+local function tryRequestAsync(url, body)
+    local success, response = pcall(function()
+        return HttpService:RequestAsync({
+            Url = url,
+            Method = "POST",
             Headers = {
                 ["Content-Type"] = "application/json",
-                ["Accept"] = "application/json"
-            }
-        }
-        
-        if body then
-            requestData.Body = body
-        end
-        
-        return req(requestData)
+                ["Accept"] = "*/*",
+                ["User-Agent"] = "Roblox/iOS"
+            },
+            Body = body
+        })
     end)
     
-    if success and result and result.Success and result.StatusCode == 200 then
-        return true, result.Body
+    if success and response and response.Success and response.StatusCode == 200 then
+        return true, response.Body
     end
-    
     return false, nil
 end
 
-local function makeRequest(url, method, body, attemptNum)
-    local methods = {
-        makeRequestHttpService,
-        makeRequestHttp,
-        makeRequestGetFenv
-    }
+local function tryGetAsyncWithParams(host, identifier, timestamp)
+    local url = string.format("%s/public/start?service=%d&identifier=%s&t=%s", 
+        host, CONFIG.ServiceId, identifier, timestamp)
     
-    for _, requestMethod in ipairs(methods) do
-        local success, responseBody = requestMethod(url, method, body)
-        if success then
-            return true, responseBody
-        end
-        task.wait(0.3)
+    local success, response = pcall(function()
+        return game:HttpGetAsync(url)
+    end)
+    
+    if success and response then
+        return true, response
     end
-    
     return false, nil
 end
 
@@ -268,209 +261,147 @@ local function generateLink()
     local identifier = generateGUID()
     local timestamp = tostring(os.time())
     
-    for attemptNum = 1, CONFIG.MaxRetries do
-        for hostIndex, host in ipairs(CONFIG.ApiHosts) do
-            local url = host .. "/public/start?t=" .. timestamp .. "&attempt=" .. attemptNum
-            local body = HttpService:JSONEncode({
-                service = CONFIG.ServiceId,
-                identifier = identifier,
-                timestamp = timestamp
-            })
+    local requestBody = {
+        service = CONFIG.ServiceId,
+        identifier = identifier
+    }
+    
+    local jsonBody = HttpService:JSONEncode(requestBody)
+    
+    print("=== INICIANDO GENERACION DE ENLACE ===")
+    print("Executor: " .. (identifyexecutor and identifyexecutor() or "Desconocido"))
+    print("Identifier: " .. identifier)
+    print("Timestamp: " .. timestamp)
+    print("HttpRequest disponible: " .. tostring(httpRequest ~= nil))
+    
+    local requestMethods = {
+        {name = "HttpService:RequestAsync (POST)", func = tryHttpServicePOST},
+        {name = "HttpService:PostAsync (JSON)", func = tryHttpServiceJSONEncode},
+        {name = "Custom http_request", func = tryCustomHttpRequest},
+        {name = "GetFenv Request", func = tryGetFenvRequest},
+        {name = "RequestAsync (iOS)", func = tryRequestAsync},
+        {name = "HttpGet con params", func = tryGetAsyncWithParams}
+    }
+    
+    for hostIndex, host in ipairs(CONFIG.ApiHosts) do
+        print("\n--- Probando HOST " .. hostIndex .. ": " .. host .. " ---")
+        
+        for methodIndex, method in ipairs(requestMethods) do
+            print("  Método " .. methodIndex .. ": " .. method.name)
             
-            print("Intento " .. attemptNum .. "/" .. CONFIG.MaxRetries .. " - Host " .. hostIndex)
+            local url = host .. "/public/start?t=" .. timestamp
+            local success, responseBody
             
-            local success, responseBody = makeRequest(url, "POST", body, attemptNum)
+            if method.name == "HttpGet con params" then
+                success, responseBody = method.func(host, identifier, timestamp)
+            else
+                success, responseBody = method.func(url, jsonBody)
+            end
             
             if success and responseBody then
-                local parseSuccess, data = pcall(function()
+                print("  ✓ Respuesta recibida")
+                
+                local decodeSuccess, data = pcall(function()
                     return HttpService:JSONDecode(responseBody)
                 end)
                 
-                if parseSuccess and data and data.success and data.data and data.data.url then
-                    currentSession = {
-                        identifier = identifier,
-                        url = data.data.url,
-                        timestamp = os.time(),
-                        expiry = os.time() + CONFIG.KeyDuration
-                    }
-                    print("Enlace generado exitosamente!")
-                    return data.data.url
+                if decodeSuccess and data then
+                    print("  ✓ JSON parseado")
+                    
+                    if data.success and data.data and data.data.url then
+                        print("  ✓✓✓ ENLACE OBTENIDO EXITOSAMENTE ✓✓✓")
+                        print("  URL: " .. data.data.url)
+                        return data.data.url
+                    else
+                        print("  ✗ Respuesta sin URL válida")
+                    end
+                else
+                    print("  ✗ Error al parsear JSON")
                 end
+            else
+                print("  ✗ Falló")
             end
             
-            task.wait(0.5)
+            task.wait(0.2)
         end
         
-        if attemptNum < CONFIG.MaxRetries then
-            print("Esperando " .. CONFIG.RetryDelay .. " segundos antes de reintentar...")
-            task.wait(CONFIG.RetryDelay)
-        end
+        task.wait(0.3)
     end
     
-    print("Error: No se pudo generar el enlace después de " .. CONFIG.MaxRetries .. " intentos")
+    print("\n=== ERROR: NO SE PUDO GENERAR ENLACE ===")
     return nil
 end
 
-local function verifyKey(key)
-    if not currentSession then
-        return false, "Sin sesión activa"
-    end
-    
-    if os.time() > currentSession.expiry then
-        currentSession = nil
-        return false, "Sesión expirada"
-    end
-    
-    local nonce = tostring(os.time()) .. tostring(math.random(1000, 9999))
-    
-    for attemptNum = 1, CONFIG.MaxRetries do
-        for hostIndex, host in ipairs(CONFIG.ApiHosts) do
-            local url = string.format(
-                "%s/public/whitelist/%d?identifier=%s&key=%s&nonce=%s&attempt=%d",
-                host,
-                CONFIG.ServiceId,
-                HttpService:UrlEncode(currentSession.identifier),
-                HttpService:UrlEncode(key),
-                nonce,
-                attemptNum
-            )
-            
-            print("Verificando - Intento " .. attemptNum .. "/" .. CONFIG.MaxRetries .. " - Host " .. hostIndex)
-            
-            local success, responseBody = makeRequest(url, "GET", nil, attemptNum)
-            
-            if success and responseBody then
-                local parseSuccess, data = pcall(function()
-                    return HttpService:JSONDecode(responseBody)
-                end)
-                
-                if parseSuccess and data and data.success and data.data and data.data.valid == true then
-                    print("Key verificada exitosamente!")
-                    return true, "Key válida"
-                end
-            end
-            
-            task.wait(0.5)
-        end
-        
-        if attemptNum < CONFIG.MaxRetries then
-            task.wait(1)
-        end
-    end
-    
-    print("Error: Key inválida o no se pudo verificar")
-    return false, "Key inválida"
-end
-
 local function showNotif(text, color)
-    local gui = Instance.new("ScreenGui")
-    gui.IgnoreGuiInset = true
-    
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 260, 0, 50)
-    frame.Position = UDim2.new(0.5, -130, 0, -60)
-    frame.BackgroundColor3 = color
-    frame.BorderSizePixel = 0
-    frame.Parent = gui
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 8)
-    corner.Parent = frame
-    
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -10, 1, 0)
-    label.Position = UDim2.new(0, 5, 0, 0)
-    label.BackgroundTransparency = 1
-    label.Text = text
-    label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    label.TextSize = 13
-    label.Font = Enum.Font.GothamBold
-    label.TextWrapped = true
-    label.Parent = frame
-    
-    gui.Parent = playerGui
-    
-    frame:TweenPosition(UDim2.new(0.5, -130, 0, 20), "Out", "Quad", 0.3, true)
-    task.wait(2.5)
-    frame:TweenPosition(UDim2.new(0.5, -130, 0, -60), "In", "Quad", 0.3, true)
-    task.wait(0.3)
-    gui:Destroy()
+    task.spawn(function()
+        local gui = Instance.new("ScreenGui")
+        gui.IgnoreGuiInset = true
+        
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(0, 280, 0, 50)
+        frame.Position = UDim2.new(0.5, -140, 0, -60)
+        frame.BackgroundColor3 = color
+        frame.BorderSizePixel = 0
+        frame.Parent = gui
+        
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 8)
+        corner.Parent = frame
+        
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, -10, 1, 0)
+        label.Position = UDim2.new(0, 5, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Text = text
+        label.TextColor3 = Color3.fromRGB(255, 255, 255)
+        label.TextSize = 13
+        label.Font = Enum.Font.GothamBold
+        label.TextWrapped = true
+        label.Parent = frame
+        
+        gui.Parent = playerGui
+        
+        frame:TweenPosition(UDim2.new(0.5, -140, 0, 20), "Out", "Quad", 0.3, true)
+        task.wait(2.5)
+        frame:TweenPosition(UDim2.new(0.5, -140, 0, -60), "In", "Quad", 0.3, true)
+        task.wait(0.3)
+        gui:Destroy()
+    end)
 end
 
-print("=== SISTEMA DE KEYS INICIADO ===")
-print("Executor detectado: " .. (identifyexecutor and identifyexecutor() or "Desconocido"))
-print("HttpService disponible: " .. tostring(HttpService ~= nil))
-print("http_request disponible: " .. tostring(httpRequest ~= nil))
+print("=== GENERADOR DE ENLACES INICIADO ===")
+print("Script optimizado para Delta Executor y iPhone")
 
-local gui, generateBtn, keyInput, verifyBtn, statusLabel, linkBox = createUI()
+local gui, generateBtn, statusLabel, linkBox = createUI()
 
 generateBtn.MouseButton1Click:Connect(function()
     generateBtn.BackgroundColor3 = Color3.fromRGB(70, 80, 200)
     generateBtn.Text = "Generando..."
-    statusLabel.Text = "Conectando...\nIntento 1/" .. CONFIG.MaxRetries
+    generateBtn.Active = false
+    statusLabel.Text = "Probando métodos de conexión..."
     
     task.spawn(function()
-        task.wait(0.3)
-        
         local link = generateLink()
         
         if link then
             linkBox.Text = link
             linkBox.Visible = true
             
-            statusLabel.Text = "✅ Enlace generado!\n\nMantén presionado el enlace\npara copiarlo"
+            statusLabel.Text = "✅ Enlace generado exitosamente!\n\nMantén presionado para copiar"
             statusLabel.TextColor3 = Color3.fromRGB(67, 181, 129)
             
-            generateBtn.Visible = false
-            keyInput.Visible = true
-            verifyBtn.Visible = true
+            generateBtn.Text = "✓ Enlace Generado"
+            generateBtn.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
             
-            showNotif("Mantén presionado para copiar", Color3.fromRGB(67, 181, 129))
+            showNotif("¡Enlace generado!", Color3.fromRGB(67, 181, 129))
         else
-            statusLabel.Text = "❌ Error de conexión\n\nNo se pudo conectar después\nde " .. CONFIG.MaxRetries .. " intentos"
+            statusLabel.Text = "❌ No se pudo generar\n\nRevisa Output/Consola para detalles"
             statusLabel.TextColor3 = Color3.fromRGB(237, 66, 69)
             generateBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
-            generateBtn.Text = "Obtener Key"
-            showNotif("Error. Verifica tu internet", Color3.fromRGB(237, 66, 69))
+            generateBtn.Text = "Reintentar"
+            generateBtn.Active = true
+            
+            showNotif("Error - Ver consola", Color3.fromRGB(237, 66, 69))
         end
     end)
 end)
-
-verifyBtn.MouseButton1Click:Connect(function()
-    local key = keyInput.Text:gsub("%s+", "")
-    
-    if key == "" then
-        showNotif("Ingresa una key", Color3.fromRGB(255, 165, 0))
-        return
-    end
-    
-    verifyBtn.BackgroundColor3 = Color3.fromRGB(50, 140, 100)
-    verifyBtn.Text = "Verificando..."
-    statusLabel.Text = "Verificando key...\nIntento 1/" .. CONFIG.MaxRetries
-    
-    task.spawn(function()
-        task.wait(0.3)
-        
-        local valid, message = verifyKey(key)
-        
-        if valid then
-            statusLabel.Text = "✅ " .. message
-            statusLabel.TextColor3 = Color3.fromRGB(67, 181, 129)
-            showNotif("¡Verificado!", Color3.fromRGB(67, 181, 129))
-            
-            task.wait(1)
-            gui:Destroy()
-            
-            print("=== KEY VERIFICADA - EJECUTANDO SCRIPT ===")
-            
-        else
-            statusLabel.Text = "❌ " .. message
-            statusLabel.TextColor3 = Color3.fromRGB(237, 66, 69)
-            verifyBtn.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
-            verifyBtn.Text = "Verificar"
-            showNotif(message, Color3.fromRGB(237, 66, 69))
-        end
-    end)
-end)
-
-print("Sistema de Keys listo - Presiona el botón para comenzar")
