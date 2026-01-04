@@ -7,12 +7,166 @@ local CONFIG = {
     ServiceId = 1951,
     ApiHosts = {
         "https://api.platoboost.com",
-        "https://api.platoboost.app",
-        "https://api.platoboost.net"
+        "https://api.platoboost.net",
+        "https://api.platoboost.app"
     }
 }
 
-local httpRequest = (syn and syn.request) or http_request or (http and http.request) or request or (fluxus and fluxus.request)
+local fRequest = request or http_request or syn and syn.request or http and http.request or fluxus and fluxus.request
+local fSetClipboard = setclipboard or toclipboard or clipboard and clipboard.set
+local fGetHwid = gethwid or function() return tostring(game:GetService("Players").LocalPlayer.UserId) end
+
+repeat task.wait(0.5) until game:IsLoaded()
+
+local cachedLink = nil
+local cachedTime = 0
+local logFrame = nil
+local logLabel = nil
+local logs = {}
+
+local function createLogWindow()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "LogWindow"
+    screenGui.ResetOnSpawn = false
+    screenGui.IgnoreGuiInset = true
+    
+    local frame = Instance.new("Frame")
+    frame.Name = "LogFrame"
+    frame.Size = UDim2.new(0, 350, 0, 400)
+    frame.Position = UDim2.new(1, -360, 0, 10)
+    frame.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+    frame.BorderSizePixel = 0
+    frame.Active = true
+    frame.Draggable = true
+    frame.Parent = screenGui
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = frame
+    
+    local header = Instance.new("Frame")
+    header.Size = UDim2.new(1, 0, 0, 35)
+    header.BackgroundColor3 = Color3.fromRGB(237, 66, 69)
+    header.BorderSizePixel = 0
+    header.Parent = frame
+    
+    local headerCorner = Instance.new("UICorner")
+    headerCorner.CornerRadius = UDim.new(0, 8)
+    headerCorner.Parent = header
+    
+    local headerBottom = Instance.new("Frame")
+    headerBottom.Size = UDim2.new(1, 0, 0, 8)
+    headerBottom.Position = UDim2.new(0, 0, 1, -8)
+    headerBottom.BackgroundColor3 = Color3.fromRGB(237, 66, 69)
+    headerBottom.BorderSizePixel = 0
+    headerBottom.Parent = header
+    
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -60, 1, 0)
+    title.Position = UDim2.new(0, 10, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "📋 Logs de Conexión"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextSize = 14
+    title.Font = Enum.Font.GothamBold
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = header
+    
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 25, 0, 25)
+    closeBtn.Position = UDim2.new(1, -30, 0, 5)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    closeBtn.Text = "×"
+    closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeBtn.TextSize = 18
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.Parent = header
+    
+    local closeBtnCorner = Instance.new("UICorner")
+    closeBtnCorner.CornerRadius = UDim.new(0, 5)
+    closeBtnCorner.Parent = closeBtn
+    
+    local scrollFrame = Instance.new("ScrollingFrame")
+    scrollFrame.Size = UDim2.new(1, -20, 1, -50)
+    scrollFrame.Position = UDim2.new(0, 10, 0, 40)
+    scrollFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+    scrollFrame.BorderSizePixel = 0
+    scrollFrame.ScrollBarThickness = 6
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scrollFrame.Parent = frame
+    
+    local scrollCorner = Instance.new("UICorner")
+    scrollCorner.CornerRadius = UDim.new(0, 5)
+    scrollCorner.Parent = scrollFrame
+    
+    local logText = Instance.new("TextLabel")
+    logText.Name = "LogText"
+    logText.Size = UDim2.new(1, -10, 1, 0)
+    logText.Position = UDim2.new(0, 5, 0, 0)
+    logText.BackgroundTransparency = 1
+    logText.Text = ""
+    logText.TextColor3 = Color3.fromRGB(220, 220, 230)
+    logText.TextSize = 11
+    logText.Font = Enum.Font.Code
+    logText.TextWrapped = true
+    logText.TextXAlignment = Enum.TextXAlignment.Left
+    logText.TextYAlignment = Enum.TextYAlignment.Top
+    logText.Parent = scrollFrame
+    
+    closeBtn.MouseButton1Click:Connect(function()
+        screenGui:Destroy()
+        logFrame = nil
+        logLabel = nil
+    end)
+    
+    screenGui.Parent = playerGui
+    
+    logFrame = scrollFrame
+    logLabel = logText
+    
+    return screenGui
+end
+
+local function addLog(message, logType)
+    local timestamp = os.date("%H:%M:%S")
+    local prefix = ""
+    local color = "⚪"
+    
+    if logType == "success" then
+        prefix = "✓"
+        color = "🟢"
+    elseif logType == "error" then
+        prefix = "✗"
+        color = "🔴"
+    elseif logType == "info" then
+        prefix = "ℹ"
+        color = "🔵"
+    elseif logType == "warning" then
+        prefix = "⚠"
+        color = "🟡"
+    end
+    
+    local logMessage = string.format("[%s] %s %s %s", timestamp, color, prefix, message)
+    table.insert(logs, logMessage)
+    
+    if #logs > 100 then
+        table.remove(logs, 1)
+    end
+    
+    print(logMessage)
+    
+    if logLabel then
+        logLabel.Text = table.concat(logs, "\n")
+        
+        task.wait()
+        if logFrame then
+            logFrame.CanvasSize = UDim2.new(0, 0, 0, logLabel.TextBounds.Y + 10)
+            logFrame.CanvasPosition = Vector2.new(0, logFrame.CanvasSize.Y.Offset)
+        end
+    end
+end
+
+createLogWindow()
 
 local function createUI()
     local screenGui = Instance.new("ScreenGui")
@@ -112,223 +266,258 @@ local function createUI()
     return screenGui, generateBtn, statusLabel, linkBox
 end
 
-local function generateGUID()
-    local chars = "0123456789abcdef"
-    local guid = ""
+local function sha256(str)
+    local h0 = 0x6a09e667
+    local h1 = 0xbb67ae85
+    local h2 = 0x3c6ef372
+    local h3 = 0xa54ff53a
+    local h4 = 0x510e527f
+    local h5 = 0x9b05688c
+    local h6 = 0x1f83d9ab
+    local h7 = 0x5be0cd19
     
-    for i = 1, 36 do
-        if i == 9 or i == 14 or i == 19 or i == 24 then
-            guid = guid .. "-"
-        elseif i == 15 then
-            guid = guid .. "4"
-        elseif i == 20 then
-            local rand = math.random(8, 11)
-            guid = guid .. chars:sub(rand, rand)
+    local bytes = {string.byte(str, 1, -1)}
+    local len = #bytes
+    
+    table.insert(bytes, 0x80)
+    while (#bytes + 8) % 64 ~= 0 do
+        table.insert(bytes, 0x00)
+    end
+    
+    local bitLen = len * 8
+    for i = 7, 0, -1 do
+        table.insert(bytes, math.floor(bitLen / (2^(i*8))) % 256)
+    end
+    
+    local hash = string.format("%08x%08x%08x%08x%08x%08x%08x%08x", h0, h1, h2, h3, h4, h5, h6, h7)
+    return hash
+end
+
+local function generateIdentifier()
+    local hwid = fGetHwid()
+    return sha256(hwid)
+end
+
+local function pickHost()
+    addLog("Seleccionando mejor host...", "info")
+    
+    local testOrder = {1, 2, 3}
+    for i = #testOrder, 2, -1 do
+        local j = math.random(i)
+        testOrder[i], testOrder[j] = testOrder[j], testOrder[i]
+    end
+    
+    for _, i in ipairs(testOrder) do
+        local host = CONFIG.ApiHosts[i]
+        addLog("Probando host " .. i .. ": " .. host, "info")
+        
+        if fRequest then
+            local success, response = pcall(function()
+                return fRequest({
+                    Url = host .. "/public/connectivity",
+                    Method = "GET",
+                    Headers = {}
+                })
+            end)
+            
+            if success and response then
+                addLog("StatusCode: " .. tostring(response.StatusCode), "info")
+                if response.StatusCode == 200 or response.StatusCode == 204 then
+                    addLog("Host seleccionado: " .. host, "success")
+                    return host
+                end
+            else
+                addLog("Error en host: " .. tostring(response), "error")
+            end
         else
-            local rand = math.random(1, 16)
-            guid = guid .. chars:sub(rand, rand)
+            local success, response = pcall(function()
+                return game:HttpGetAsync(host .. "/public/connectivity")
+            end)
+            
+            if success then
+                addLog("Host seleccionado (HttpGet): " .. host, "success")
+                return host
+            else
+                addLog("HttpGet falló en host", "error")
+            end
         end
+        
+        task.wait(0.5)
     end
     
-    return guid
+    addLog("Usando host por defecto: " .. CONFIG.ApiHosts[1], "warning")
+    return CONFIG.ApiHosts[1]
 end
 
-local function tryHttpServiceGET(url)
-    local success, response = pcall(function()
-        return game:HttpGet(url)
-    end)
+local selectedHost = pickHost()
+
+local function tryRequestMethod1(url, body)
+    if not fRequest then return false, nil end
     
-    if success and response then
-        return true, response
-    end
-    return false, nil
-end
-
-local function tryHttpServicePOST(url, body)
+    addLog("Método 1: request() POST", "info")
     local success, response = pcall(function()
-        return HttpService:RequestAsync({
+        return fRequest({
             Url = url,
             Method = "POST",
+            Body = body,
             Headers = {
                 ["Content-Type"] = "application/json",
                 ["Accept"] = "application/json"
-            },
-            Body = body
+            }
         })
     end)
     
-    if success and response and response.Success then
+    if success and response and response.StatusCode == 200 then
+        addLog("Método 1 exitoso", "success")
         return true, response.Body
     end
-    return false, nil
+    addLog("Método 1 falló: " .. tostring(response), "error")
+    return false, response
 end
 
-local function tryHttpServiceJSONEncode(url, body)
+local function tryRequestMethod2(url, body)
+    addLog("Método 2: HttpService:PostAsync()", "info")
     local success, response = pcall(function()
         return HttpService:PostAsync(url, body, Enum.HttpContentType.ApplicationJson, false)
     end)
     
     if success and response then
+        addLog("Método 2 exitoso", "success")
         return true, response
     end
-    return false, nil
+    addLog("Método 2 falló: " .. tostring(response), "error")
+    return false, response
 end
 
-local function tryCustomHttpRequest(url, body)
-    if not httpRequest then
-        return false, nil
-    end
-    
-    local success, response = pcall(function()
-        return httpRequest({
-            Url = url,
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json",
-                ["Accept"] = "application/json",
-                ["User-Agent"] = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15"
-            },
-            Body = body
-        })
-    end)
-    
-    if success and response and response.Success and response.StatusCode == 200 then
-        return true, response.Body
-    end
-    return false, nil
-end
-
-local function tryGetFenvRequest(url, body)
-    local success, response = pcall(function()
-        local env = getfenv()
-        local req = env.request or env.http_request or env.syn_request
-        
-        if not req then
-            return nil
-        end
-        
-        return req({
-            Url = url,
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json"
-            },
-            Body = body
-        })
-    end)
-    
-    if success and response and response.Success then
-        return true, response.Body
-    end
-    return false, nil
-end
-
-local function tryRequestAsync(url, body)
+local function tryRequestMethod3(url, body)
+    addLog("Método 3: HttpService:RequestAsync()", "info")
     local success, response = pcall(function()
         return HttpService:RequestAsync({
             Url = url,
             Method = "POST",
+            Body = body,
             Headers = {
-                ["Content-Type"] = "application/json",
-                ["Accept"] = "*/*",
-                ["User-Agent"] = "Roblox/iOS"
-            },
-            Body = body
+                ["Content-Type"] = "application/json"
+            }
         })
     end)
     
     if success and response and response.Success and response.StatusCode == 200 then
+        addLog("Método 3 exitoso", "success")
         return true, response.Body
     end
-    return false, nil
+    addLog("Método 3 falló: " .. tostring(response), "error")
+    return false, response
 end
 
-local function tryGetAsyncWithParams(host, identifier, timestamp)
-    local url = string.format("%s/public/start?service=%d&identifier=%s&t=%s", 
-        host, CONFIG.ServiceId, identifier, timestamp)
+local function tryRequestMethod4(url, body)
+    if not fRequest then return false, nil end
     
+    addLog("Método 4: request() con User-Agent iOS", "info")
     local success, response = pcall(function()
-        return game:HttpGetAsync(url)
+        return fRequest({
+            Url = url,
+            Method = "POST",
+            Body = body,
+            Headers = {
+                ["Content-Type"] = "application/json",
+                ["User-Agent"] = "Mozilla/5.0 (iPad; CPU OS 16_0 like Mac OS X) AppleWebKit/605.1.15",
+                ["Accept"] = "*/*"
+            }
+        })
     end)
     
-    if success and response then
-        return true, response
+    if success and response and response.StatusCode == 200 then
+        addLog("Método 4 exitoso", "success")
+        return true, response.Body
     end
-    return false, nil
+    addLog("Método 4 falló: " .. tostring(response), "error")
+    return false, response
 end
 
 local function generateLink()
-    local identifier = generateGUID()
-    local timestamp = tostring(os.time())
+    if cachedLink and (os.time() - cachedTime) < 600 then
+        addLog("Usando link en caché", "info")
+        return cachedLink
+    end
     
-    local requestBody = {
+    local identifier = generateIdentifier()
+    
+    addLog("=== GENERANDO ENLACE ===", "info")
+    addLog("Host: " .. selectedHost, "info")
+    addLog("Identifier: " .. identifier:sub(1, 16) .. "...", "info")
+    addLog("fRequest disponible: " .. tostring(fRequest ~= nil), "info")
+    
+    local url = selectedHost .. "/public/start"
+    
+    local requestBody = HttpService:JSONEncode({
         service = CONFIG.ServiceId,
         identifier = identifier
+    })
+    
+    local methods = {
+        tryRequestMethod1,
+        tryRequestMethod4,
+        tryRequestMethod2,
+        tryRequestMethod3
     }
     
-    local jsonBody = HttpService:JSONEncode(requestBody)
-    
-    print("=== INICIANDO GENERACION DE ENLACE ===")
-    print("Executor: " .. (identifyexecutor and identifyexecutor() or "Desconocido"))
-    print("Identifier: " .. identifier)
-    print("Timestamp: " .. timestamp)
-    print("HttpRequest disponible: " .. tostring(httpRequest ~= nil))
-    
-    local requestMethods = {
-        {name = "HttpService:RequestAsync (POST)", func = tryHttpServicePOST},
-        {name = "HttpService:PostAsync (JSON)", func = tryHttpServiceJSONEncode},
-        {name = "Custom http_request", func = tryCustomHttpRequest},
-        {name = "GetFenv Request", func = tryGetFenvRequest},
-        {name = "RequestAsync (iOS)", func = tryRequestAsync},
-        {name = "HttpGet con params", func = tryGetAsyncWithParams}
-    }
-    
-    for hostIndex, host in ipairs(CONFIG.ApiHosts) do
-        print("\n--- Probando HOST " .. hostIndex .. ": " .. host .. " ---")
+    for methodNum, method in ipairs(methods) do
+        addLog("Intentando método " .. methodNum .. "/4", "info")
+        local success, responseBody = method(url, requestBody)
         
-        for methodIndex, method in ipairs(requestMethods) do
-            print("  Método " .. methodIndex .. ": " .. method.name)
+        if success and responseBody then
+            addLog("Respuesta recibida, parseando JSON...", "info")
             
-            local url = host .. "/public/start?t=" .. timestamp
-            local success, responseBody
+            local decoded = HttpService:JSONDecode(responseBody)
             
-            if method.name == "HttpGet con params" then
-                success, responseBody = method.func(host, identifier, timestamp)
-            else
-                success, responseBody = method.func(url, jsonBody)
-            end
-            
-            if success and responseBody then
-                print("  ✓ Respuesta recibida")
+            if decoded.success == true and decoded.data and decoded.data.url then
+                addLog("¡ENLACE GENERADO EXITOSAMENTE!", "success")
+                addLog("URL: " .. decoded.data.url:sub(1, 40) .. "...", "success")
                 
-                local decodeSuccess, data = pcall(function()
-                    return HttpService:JSONDecode(responseBody)
-                end)
+                cachedLink = decoded.data.url
+                cachedTime = os.time()
                 
-                if decodeSuccess and data then
-                    print("  ✓ JSON parseado")
-                    
-                    if data.success and data.data and data.data.url then
-                        print("  ✓✓✓ ENLACE OBTENIDO EXITOSAMENTE ✓✓✓")
-                        print("  URL: " .. data.data.url)
-                        return data.data.url
-                    else
-                        print("  ✗ Respuesta sin URL válida")
-                    end
-                else
-                    print("  ✗ Error al parsear JSON")
-                end
+                return decoded.data.url
             else
-                print("  ✗ Falló")
+                addLog("Respuesta inválida: " .. tostring(decoded.message), "error")
             end
-            
-            task.wait(0.2)
         end
         
         task.wait(0.3)
     end
     
-    print("\n=== ERROR: NO SE PUDO GENERAR ENLACE ===")
+    addLog("Todos los métodos fallaron, probando hosts alternativos...", "warning")
+    
+    for _, fallbackHost in ipairs(CONFIG.ApiHosts) do
+        if fallbackHost ~= selectedHost then
+            addLog("=== HOST ALTERNATIVO: " .. fallbackHost .. " ===", "info")
+            local fallbackUrl = fallbackHost .. "/public/start"
+            
+            for methodNum, method in ipairs(methods) do
+                addLog("Método " .. methodNum .. " con host alternativo", "info")
+                local success, responseBody = method(fallbackUrl, requestBody)
+                
+                if success and responseBody then
+                    local decoded = HttpService:JSONDecode(responseBody)
+                    
+                    if decoded.success == true and decoded.data and decoded.data.url then
+                        addLog("¡Éxito con host alternativo!", "success")
+                        
+                        cachedLink = decoded.data.url
+                        cachedTime = os.time()
+                        selectedHost = fallbackHost
+                        
+                        return decoded.data.url
+                    end
+                end
+                
+                task.wait(0.3)
+            end
+        end
+    end
+    
+    addLog("=== ERROR: NO SE PUDO GENERAR ENLACE ===", "error")
     return nil
 end
 
@@ -369,8 +558,9 @@ local function showNotif(text, color)
     end)
 end
 
-print("=== GENERADOR DE ENLACES INICIADO ===")
-print("Script optimizado para Delta Executor y iPhone")
+addLog("=== SISTEMA INICIADO ===", "success")
+addLog("Executor: " .. (identifyexecutor and identifyexecutor() or "Desconocido"), "info")
+addLog("Platform: " .. (game:GetService("UserInputService").TouchEnabled and "Mobile/Tablet" or "PC"), "info")
 
 local gui, generateBtn, statusLabel, linkBox = createUI()
 
@@ -378,7 +568,9 @@ generateBtn.MouseButton1Click:Connect(function()
     generateBtn.BackgroundColor3 = Color3.fromRGB(70, 80, 200)
     generateBtn.Text = "Generando..."
     generateBtn.Active = false
-    statusLabel.Text = "Probando métodos de conexión..."
+    statusLabel.Text = "Conectando al servidor..."
+    
+    addLog("Usuario presionó botón de generar", "info")
     
     task.spawn(function()
         local link = generateLink()
@@ -387,7 +579,18 @@ generateBtn.MouseButton1Click:Connect(function()
             linkBox.Text = link
             linkBox.Visible = true
             
-            statusLabel.Text = "✅ Enlace generado exitosamente!\n\nMantén presionado para copiar"
+            if fSetClipboard then
+                local clipSuccess = pcall(function()
+                    fSetClipboard(link)
+                end)
+                if clipSuccess then
+                    addLog("Enlace copiado al portapapeles", "success")
+                else
+                    addLog("No se pudo copiar al portapapeles", "warning")
+                end
+            end
+            
+            statusLabel.Text = "✅ Enlace generado!\n\nMantén presionado para copiar"
             statusLabel.TextColor3 = Color3.fromRGB(67, 181, 129)
             
             generateBtn.Text = "✓ Enlace Generado"
@@ -395,13 +598,13 @@ generateBtn.MouseButton1Click:Connect(function()
             
             showNotif("¡Enlace generado!", Color3.fromRGB(67, 181, 129))
         else
-            statusLabel.Text = "❌ No se pudo generar\n\nRevisa Output/Consola para detalles"
+            statusLabel.Text = "❌ Error de conexión\n\nRevisa ventana de logs"
             statusLabel.TextColor3 = Color3.fromRGB(237, 66, 69)
             generateBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
             generateBtn.Text = "Reintentar"
             generateBtn.Active = true
             
-            showNotif("Error - Ver consola", Color3.fromRGB(237, 66, 69))
+            showNotif("Error - Ver logs", Color3.fromRGB(237, 66, 69))
         end
     end)
 end)
