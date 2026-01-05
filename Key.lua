@@ -5,13 +5,16 @@ local playerGui = player:WaitForChild("PlayerGui")
 
 local CONFIG = {
     ServiceId = 1951,
+    -- PROXY PRIMERO (tu Cloudflare Worker)
+    ProxyUrl = "https://jolly-bush-a809.armijosfeo.workers.dev/platoboost/start",
+    -- APIs originales como fallback
     ApiHosts = {
         "https://api.platoboost.com",
         "https://api.platoboost.net",
         "https://api.platoboost.app"
     },
     Timeout = 15,
-    MaxRetries = 3
+    MaxRetries = 2
 }
 
 local cachedLink = nil
@@ -19,13 +22,12 @@ local cachedTime = 0
 
 repeat task.wait(0.5) until game:IsLoaded()
 
--- Detectar la función de request correcta
+-- Detectar función de request
 local requestFunction = (
     http_request or 
     request or 
     (syn and syn.request) or
-    (http and http.request) or
-    (game and game.HttpGet)
+    (http and http.request)
 )
 
 local function getIdentifier()
@@ -37,19 +39,45 @@ local function getIdentifier()
         return tostring(hwid)
     end
     
-    -- Fallback a UserId + JobId para más unicidad
     return tostring(player.UserId) .. "_" .. tostring(game.JobId):sub(1, 8)
 end
 
-local function makeRequest(url, payload, attempt)
-    attempt = attempt or 1
-    
+-- Función para hacer request al PROXY
+local function makeProxyRequest(payload)
     if not requestFunction then
-        return false, "No se encontró función de request compatible"
+        return false, "No request function available"
     end
     
     local success, result = pcall(function()
-        local response = requestFunction({
+        return requestFunction({
+            Url = CONFIG.ProxyUrl,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json",
+                ["Accept"] = "application/json"
+            },
+            Body = payload,
+            Timeout = CONFIG.Timeout
+        })
+    end)
+    
+    if not success then
+        return false, result
+    end
+    
+    return true, result
+end
+
+-- Función para hacer request directo a Platoboost (fallback)
+local function makeDirectRequest(url, payload, attempt)
+    attempt = attempt or 1
+    
+    if not requestFunction then
+        return false, "No request function"
+    end
+    
+    local success, result = pcall(function()
+        return requestFunction({
             Url = url,
             Method = "POST",
             Headers = {
@@ -61,20 +89,14 @@ local function makeRequest(url, payload, attempt)
             Body = payload,
             Timeout = CONFIG.Timeout
         })
-        
-        return response
     end)
     
-    if not success then
-        -- Retry con backoff exponencial
-        if attempt < CONFIG.MaxRetries then
-            task.wait(math.pow(2, attempt - 1))
-            return makeRequest(url, payload, attempt + 1)
-        end
-        return false, result
+    if not success and attempt < CONFIG.MaxRetries then
+        task.wait(math.pow(2, attempt - 1))
+        return makeDirectRequest(url, payload, attempt + 1)
     end
     
-    return true, result
+    return success, result
 end
 
 local function generateLink()
@@ -84,20 +106,37 @@ local function generateLink()
     end
     
     local identifier = getIdentifier()
-    
     local payload = HttpService:JSONEncode({
         service = CONFIG.ServiceId,
         identifier = identifier
     })
     
-    -- Intentar con cada host
+    -- PASO 1: Intentar con el PROXY primero (mejor para usuarios con bloqueos)
+    print("🔄 Intentando con proxy Cloudflare...")
+    local success, result = makeProxyRequest(payload)
+    
+    if success and result and result.StatusCode == 200 and result.Body then
+        local parseOk, data = pcall(function()
+            return HttpService:JSONDecode(result.Body)
+        end)
+        
+        if parseOk and data and data.success and data.data and data.data.url then
+            cachedLink = data.data.url
+            cachedTime = os.time()
+            print("✅ Enlace obtenido vía PROXY")
+            return data.data.url, "success_proxy"
+        end
+    end
+    
+    -- PASO 2: Si el proxy falla, intentar directamente con los hosts originales
+    print("⚠️ Proxy falló, intentando conexión directa...")
+    
     for hostIndex, host in ipairs(CONFIG.ApiHosts) do
         local url = host .. "/public/start"
         
-        local success, result = makeRequest(url, payload)
+        success, result = makeDirectRequest(url, payload)
         
         if success and result then
-            -- Verificar status code
             if result.StatusCode == 200 or result.StatusCode == 201 then
                 if result.Body and result.Body ~= "" then
                     local parseOk, data = pcall(function()
@@ -108,34 +147,27 @@ local function generateLink()
                         if data.success and data.data and data.data.url then
                             cachedLink = data.data.url
                             cachedTime = os.time()
-                            return data.data.url, "success"
+                            print("✅ Enlace obtenido directamente de " .. host)
+                            return data.data.url, "success_direct"
                         elseif data.message then
-                            -- API retornó error con mensaje
                             return nil, data.message
                         end
                     end
                 end
             elseif result.StatusCode == 429 then
                 return nil, "Rate limit - Espera 30 segundos"
-            elseif result.StatusCode >= 500 then
-                -- Error del servidor, intentar siguiente host
-                if hostIndex < #CONFIG.ApiHosts then
-                    task.wait(1)
-                    continue
-                end
             end
         end
         
-        -- Pequeña espera entre hosts
         if hostIndex < #CONFIG.ApiHosts then
             task.wait(0.5)
         end
     end
     
-    return nil, "No se pudo conectar a ningún servidor"
+    return nil, "No se pudo conectar\nIntenta con VPN o datos móviles"
 end
 
--- UI Creation
+-- ============= UI =============
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "KeySystem"
 ScreenGui.ResetOnSpawn = false
@@ -253,20 +285,19 @@ GenerateButton.MouseButton1Click:Connect(function()
     isGenerating = true
     GenerateButton.BackgroundColor3 = Color3.fromRGB(70, 80, 200)
     GenerateButton.Text = "Generando..."
-    StatusLabel.Text = "🔄 Conectando al servidor Platoboost...\nPor favor espera"
+    StatusLabel.Text = "🔄 Conectando...\nIntentando proxy y servidores"
     StatusLabel.TextColor3 = Color3.fromRGB(220, 221, 222)
     LinkBox.Visible = false
     
     task.spawn(function()
         local link, status = generateLink()
         
-        task.wait(0.5) -- Pequeña espera visual
+        task.wait(0.5)
         
         if link then
             LinkBox.Text = link
             LinkBox.Visible = true
             
-            -- Intentar copiar al portapapeles
             local clipboardSuccess = false
             if setclipboard then
                 clipboardSuccess = pcall(function()
@@ -274,17 +305,20 @@ GenerateButton.MouseButton1Click:Connect(function()
                 end)
             end
             
+            local methodText = ""
             if status == "cached" then
-                StatusLabel.Text = "✅ Enlace recuperado del caché\n" .. (clipboardSuccess and "Copiado al portapapeles" or "")
-            else
-                StatusLabel.Text = "✅ Enlace generado correctamente\n" .. (clipboardSuccess and "Copiado al portapapeles" or "Copia manualmente")
+                methodText = "📦 Desde caché"
+            elseif status == "success_proxy" then
+                methodText = "🌐 Vía proxy Cloudflare"
+            elseif status == "success_direct" then
+                methodText = "🔗 Conexión directa"
             end
             
+            StatusLabel.Text = "✅ Enlace generado\n" .. methodText .. (clipboardSuccess and " | Copiado ✓" or "")
             StatusLabel.TextColor3 = Color3.fromRGB(67, 181, 129)
             GenerateButton.Text = "✓ Generado"
             GenerateButton.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
             
-            -- Reset después de 5 segundos
             task.delay(5, function()
                 if GenerateButton then
                     GenerateButton.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
@@ -293,7 +327,7 @@ GenerateButton.MouseButton1Click:Connect(function()
                 end
             end)
         else
-            StatusLabel.Text = "❌ " .. (status or "Error desconocido") .. "\nVerifica tu conexión"
+            StatusLabel.Text = "❌ " .. (status or "Error de conexión")
             StatusLabel.TextColor3 = Color3.fromRGB(240, 71, 71)
             GenerateButton.BackgroundColor3 = Color3.fromRGB(240, 71, 71)
             GenerateButton.Text = "Reintentar"
@@ -311,7 +345,6 @@ GenerateButton.MouseButton1Click:Connect(function()
     end)
 end)
 
--- Debug info (puedes eliminar esto en producción)
-print("🔑 Key System cargado")
-print("Executor detectado: " .. (identifyexecutor and identifyexecutor() or "Desconocido"))
-print("Request function: " .. (requestFunction and "✓ Encontrada" or "✗ No encontrada"))
+print("🔑 Key System con Proxy cargado")
+print("🌐 Proxy:", CONFIG.ProxyUrl)
+print("📱 Request function:", requestFunction and "✓" or "✗")
