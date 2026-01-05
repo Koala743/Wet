@@ -10,13 +10,15 @@ local CONFIG = {
         "https://api.platoboost.net",
         "https://api.platoboost.app",
         "https://gateway.platoboost.com",
-        "https://cdn.platoboost.com"
+        "https://cdn.platoboost.com",
+        "http://api.platoboost.com",
+        "http://api.platoboost.net"
     }
 }
 
-local fRequest = request or http_request or syn and syn.request or http and http.request or fluxus and fluxus.request
-local fSetClipboard = setclipboard or toclipboard or clipboard and clipboard.set
-local fGetHwid = gethwid or function() return tostring(game:GetService("Players").LocalPlayer.UserId) end
+local fRequest = request or http_request or (delta and delta.request) or (Delta and Delta.request) or (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request)
+local fSetClipboard = setclipboard or toclipboard or (clipboard and clipboard.set) or (delta and delta.setclipboard) or (Delta and Delta.setclipboard) or setrbxclipboard
+local fGetHwid = gethwid or (delta and delta.gethwid) or (Delta and Delta.gethwid) or function() return tostring(game:GetService("Players").LocalPlayer.UserId) end
 
 repeat task.wait(0.5) until game:IsLoaded()
 
@@ -159,7 +161,6 @@ local function addLog(message, logType)
     
     if logLabel then
         logLabel.Text = table.concat(logs, "\n")
-        
         task.wait()
         if logFrame then
             logFrame.CanvasSize = UDim2.new(0, 0, 0, logLabel.TextBounds.Y + 10)
@@ -300,64 +301,9 @@ local function generateIdentifier()
     return sha256(hwid)
 end
 
-local function pickHost()
-    addLog("Seleccionando mejor host...", "info")
-    
-    local testOrder = {1, 2, 3, 4, 5}
-    for i = #testOrder, 2, -1 do
-        local j = math.random(i)
-        testOrder[i], testOrder[j] = testOrder[j], testOrder[i]
-    end
-    
-    for _, i in ipairs(testOrder) do
-        local host = CONFIG.ApiHosts[i]
-        addLog("Probando host " .. i .. ": " .. host, "info")
-        
-        if fRequest then
-            local success, response = pcall(function()
-                return fRequest({
-                    Url = host .. "/public/connectivity",
-                    Method = "GET",
-                    Headers = {}
-                })
-            end)
-            
-            if success and response then
-                addLog("StatusCode: " .. tostring(response.StatusCode), "info")
-                if response.StatusCode == 200 or response.StatusCode == 204 then
-                    addLog("Host seleccionado: " .. host, "success")
-                    return host
-                end
-            else
-                addLog("Error en host: " .. tostring(response), "error")
-            end
-        else
-            local success, response = pcall(function()
-                return game:HttpGetAsync(host .. "/public/connectivity")
-            end)
-            
-            if success then
-                addLog("Host seleccionado (HttpGet): " .. host, "success")
-                return host
-            else
-                addLog("HttpGet falló en host", "error")
-            end
-        end
-        
-        task.wait(0.3)
-    end
-    
-    addLog("Usando host por defecto: " .. CONFIG.ApiHosts[1], "warning")
-    return CONFIG.ApiHosts[1]
-end
-
-local selectedHost = pickHost()
-
--- NUEVO: Método 1 - request() POST estándar
-local function tryRequestMethod1(url, body)
+local function tryMethod1(url, body)
     if not fRequest then return false, nil end
-    
-    addLog("Método 1: request() POST", "info")
+    addLog("Método 1: request() POST básico", "info")
     local success, response = pcall(function()
         return fRequest({
             Url = url,
@@ -369,57 +315,43 @@ local function tryRequestMethod1(url, body)
             }
         })
     end)
-    
-    if success and response and response.StatusCode == 200 then
-        addLog("Método 1 exitoso", "success")
-        return true, response.Body
-    end
-    addLog("Método 1 falló: " .. tostring(response), "error")
-    return false, response
-end
-
--- NUEVO: Método 2 - HttpService:PostAsync()
-local function tryRequestMethod2(url, body)
-    addLog("Método 2: HttpService:PostAsync()", "info")
-    local success, response = pcall(function()
-        return HttpService:PostAsync(url, body, Enum.HttpContentType.ApplicationJson, false)
-    end)
-    
     if success and response then
-        addLog("Método 2 exitoso", "success")
-        return true, response
+        if type(response) == "table" and response.Body then
+            addLog("Método 1 OK", "success")
+            return true, response.Body
+        elseif type(response) == "string" then
+            return true, response
+        end
     end
-    addLog("Método 2 falló: " .. tostring(response), "error")
+    addLog("Método 1 falló", "error")
     return false, response
 end
 
--- NUEVO: Método 3 - HttpService:RequestAsync()
-local function tryRequestMethod3(url, body)
-    addLog("Método 3: HttpService:RequestAsync()", "info")
+local function tryMethod2(url, body)
+    if not fRequest then return false, nil end
+    addLog("Método 2: request() sin headers", "info")
     local success, response = pcall(function()
-        return HttpService:RequestAsync({
+        return fRequest({
             Url = url,
             Method = "POST",
-            Body = body,
-            Headers = {
-                ["Content-Type"] = "application/json"
-            }
+            Body = body
         })
     end)
-    
-    if success and response and response.Success and response.StatusCode == 200 then
-        addLog("Método 3 exitoso", "success")
-        return true, response.Body
+    if success and response then
+        if type(response) == "table" and response.Body then
+            addLog("Método 2 OK", "success")
+            return true, response.Body
+        elseif type(response) == "string" then
+            return true, response
+        end
     end
-    addLog("Método 3 falló: " .. tostring(response), "error")
+    addLog("Método 2 falló", "error")
     return false, response
 end
 
--- NUEVO: Método 4 - request() con User-Agent iOS
-local function tryRequestMethod4(url, body)
+local function tryMethod3(url, body)
     if not fRequest then return false, nil end
-    
-    addLog("Método 4: request() con User-Agent iOS", "info")
+    addLog("Método 3: request() User-Agent iOS", "info")
     local success, response = pcall(function()
         return fRequest({
             Url = url,
@@ -432,99 +364,219 @@ local function tryRequestMethod4(url, body)
             }
         })
     end)
-    
-    if success and response and response.StatusCode == 200 then
-        addLog("Método 4 exitoso", "success")
-        return true, response.Body
-    end
-    addLog("Método 4 falló: " .. tostring(response), "error")
-    return false, response
-end
-
--- NUEVO: Método 5 - HttpService:GetAsync() con parámetros en URL
-local function tryRequestMethod5(url, body)
-    addLog("Método 5: GET con params en URL", "info")
-    
-    local decoded = HttpService:JSONDecode(body)
-    local params = "?service=" .. tostring(decoded.service) .. "&identifier=" .. tostring(decoded.identifier)
-    local getUrl = url:gsub("/start", "/start" .. params)
-    
-    local success, response = pcall(function()
-        return HttpService:GetAsync(getUrl, true)
-    end)
-    
     if success and response then
-        addLog("Método 5 exitoso", "success")
-        return true, response
+        if type(response) == "table" and response.Body then
+            addLog("Método 3 OK", "success")
+            return true, response.Body
+        elseif type(response) == "string" then
+            return true, response
+        end
     end
-    addLog("Método 5 falló: " .. tostring(response), "error")
+    addLog("Método 3 falló", "error")
     return false, response
 end
 
--- NUEVO: Método 6 - request() sin Content-Type
-local function tryRequestMethod6(url, body)
+local function tryMethod4(url, body)
     if not fRequest then return false, nil end
-    
-    addLog("Método 6: request() sin headers complejos", "info")
+    addLog("Método 4: request() User-Agent Android", "info")
     local success, response = pcall(function()
         return fRequest({
             Url = url,
             Method = "POST",
-            Body = body
+            Body = body,
+            Headers = {
+                ["Content-Type"] = "application/json",
+                ["User-Agent"] = "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36"
+            }
         })
     end)
-    
-    if success and response and response.StatusCode == 200 then
-        addLog("Método 6 exitoso", "success")
-        return true, response.Body
+    if success and response then
+        if type(response) == "table" and response.Body then
+            addLog("Método 4 OK", "success")
+            return true, response.Body
+        elseif type(response) == "string" then
+            return true, response
+        end
     end
-    addLog("Método 6 falló: " .. tostring(response), "error")
+    addLog("Método 4 falló", "error")
     return false, response
 end
 
--- NUEVO: Método 7 - HttpService:JSONEncode dentro del request
-local function tryRequestMethod7(url, body)
-    if not fRequest then return false, nil end
-    
-    addLog("Método 7: request() con encoding interno", "info")
+local function tryMethod5(url, body)
+    addLog("Método 5: HttpService:PostAsync()", "info")
     local success, response = pcall(function()
-        local decoded = HttpService:JSONDecode(body)
-        return fRequest({
+        return HttpService:PostAsync(url, body, Enum.HttpContentType.ApplicationJson, false)
+    end)
+    if success and response then
+        addLog("Método 5 OK", "success")
+        return true, response
+    end
+    addLog("Método 5 falló", "error")
+    return false, response
+end
+
+local function tryMethod6(url, body)
+    addLog("Método 6: HttpService:RequestAsync() POST", "info")
+    local success, response = pcall(function()
+        return HttpService:RequestAsync({
             Url = url,
             Method = "POST",
-            Body = game:GetService("HttpService"):JSONEncode(decoded),
+            Body = body,
             Headers = {
                 ["Content-Type"] = "application/json"
             }
         })
     end)
-    
-    if success and response and response.StatusCode == 200 then
-        addLog("Método 7 exitoso", "success")
+    if success and response and response.Success and response.Body then
+        addLog("Método 6 OK", "success")
         return true, response.Body
     end
-    addLog("Método 7 falló: " .. tostring(response), "error")
+    addLog("Método 6 falló", "error")
     return false, response
 end
 
--- NUEVO: Método 8 - game:HttpGet() legacy
-local function tryRequestMethod8(url, body)
-    addLog("Método 8: Legacy HttpGet", "info")
-    
-    local decoded = HttpService:JSONDecode(body)
-    local params = "?service=" .. tostring(decoded.service) .. "&identifier=" .. tostring(decoded.identifier)
-    local getUrl = url:gsub("/start", "/start" .. params)
-    
+local function tryMethod7(url, body)
+    addLog("Método 7: game:HttpPost()", "info")
     local success, response = pcall(function()
-        return game:HttpGet(getUrl)
+        return game:HttpPost(url, body)
     end)
-    
     if success and response then
-        addLog("Método 8 exitoso", "success")
+        addLog("Método 7 OK", "success")
         return true, response
     end
-    addLog("Método 8 falló: " .. tostring(response), "error")
+    addLog("Método 7 falló", "error")
     return false, response
+end
+
+local function tryMethod8(url, body)
+    addLog("Método 8: game:HttpPostAsync()", "info")
+    local success, response = pcall(function()
+        return game:HttpPostAsync(url, body)
+    end)
+    if success and response then
+        addLog("Método 8 OK", "success")
+        return true, response
+    end
+    addLog("Método 8 falló", "error")
+    return false, response
+end
+
+local function tryMethod9(identifier)
+    addLog("Método 9: game:HttpGet() con params", "info")
+    for _, host in ipairs(CONFIG.ApiHosts) do
+        local url = string.format("%s/public/start?service=%d&identifier=%s", host, CONFIG.ServiceId, identifier)
+        local success, response = pcall(function()
+            return game:HttpGet(url)
+        end)
+        if success and response and response ~= "" then
+            addLog("Método 9 OK en " .. host, "success")
+            return true, response
+        end
+    end
+    addLog("Método 9 falló en todos los hosts", "error")
+    return false, nil
+end
+
+local function tryMethod10(identifier)
+    addLog("Método 10: game:HttpGetAsync() con params", "info")
+    for _, host in ipairs(CONFIG.ApiHosts) do
+        local url = string.format("%s/public/start?service=%d&identifier=%s", host, CONFIG.ServiceId, identifier)
+        local success, response = pcall(function()
+            return game:HttpGetAsync(url)
+        end)
+        if success and response and response ~= "" then
+            addLog("Método 10 OK en " .. host, "success")
+            return true, response
+        end
+    end
+    addLog("Método 10 falló", "error")
+    return false, nil
+end
+
+local function tryMethod11(identifier)
+    addLog("Método 11: HttpService:GetAsync()", "info")
+    for _, host in ipairs(CONFIG.ApiHosts) do
+        local url = string.format("%s/public/start?service=%d&identifier=%s", host, CONFIG.ServiceId, identifier)
+        local success, response = pcall(function()
+            return HttpService:GetAsync(url, true)
+        end)
+        if success and response and response ~= "" then
+            addLog("Método 11 OK", "success")
+            return true, response
+        end
+    end
+    addLog("Método 11 falló", "error")
+    return false, nil
+end
+
+local function tryMethod12(identifier)
+    addLog("Método 12: HttpService:RequestAsync() GET", "info")
+    for _, host in ipairs(CONFIG.ApiHosts) do
+        local url = string.format("%s/public/start?service=%d&identifier=%s", host, CONFIG.ServiceId, identifier)
+        local success, response = pcall(function()
+            return HttpService:RequestAsync({
+                Url = url,
+                Method = "GET"
+            })
+        end)
+        if success and response and response.Success and response.Body then
+            addLog("Método 12 OK", "success")
+            return true, response.Body
+        end
+    end
+    addLog("Método 12 falló", "error")
+    return false, nil
+end
+
+local function tryMethod13(identifier)
+    if not fRequest then return false, nil end
+    addLog("Método 13: request() GET con params", "info")
+    for _, host in ipairs(CONFIG.ApiHosts) do
+        local url = string.format("%s/public/start?service=%d&identifier=%s", host, CONFIG.ServiceId, identifier)
+        local success, response = pcall(function()
+            return fRequest({
+                Url = url,
+                Method = "GET"
+            })
+        end)
+        if success and response then
+            if type(response) == "table" and response.Body then
+                addLog("Método 13 OK", "success")
+                return true, response.Body
+            elseif type(response) == "string" then
+                return true, response
+            end
+        end
+    end
+    addLog("Método 13 falló", "error")
+    return false, nil
+end
+
+local function tryMethod14(identifier)
+    if not fRequest then return false, nil end
+    addLog("Método 14: request() GET con headers iOS", "info")
+    for _, host in ipairs(CONFIG.ApiHosts) do
+        local url = string.format("%s/public/start?service=%d&identifier=%s", host, CONFIG.ServiceId, identifier)
+        local success, response = pcall(function()
+            return fRequest({
+                Url = url,
+                Method = "GET",
+                Headers = {
+                    ["User-Agent"] = "Mozilla/5.0 (iPad; CPU OS 16_0 like Mac OS X) AppleWebKit/605.1.15"
+                }
+            })
+        end)
+        if success and response then
+            if type(response) == "table" and response.Body then
+                addLog("Método 14 OK", "success")
+                return true, response.Body
+            elseif type(response) == "string" then
+                return true, response
+            end
+        end
+    end
+    addLog("Método 14 falló", "error")
+    return false, nil
 end
 
 local function generateLink()
@@ -535,95 +587,62 @@ local function generateLink()
     
     local identifier = generateIdentifier()
     
-    addLog("=== GENERANDO ENLACE ===", "info")
-    addLog("Host: " .. selectedHost, "info")
+    addLog("=== GENERANDO ENLACE ULTRA ===", "success")
     addLog("Identifier: " .. identifier:sub(1, 16) .. "...", "info")
     addLog("fRequest disponible: " .. tostring(fRequest ~= nil), "info")
-    
-    local url = selectedHost .. "/public/start"
+    addLog("Executor: " .. (identifyexecutor and identifyexecutor() or "Unknown"), "info")
     
     local requestBody = HttpService:JSONEncode({
         service = CONFIG.ServiceId,
         identifier = identifier
     })
     
-    -- TODOS LOS MÉTODOS EN ORDEN
-    local methods = {
-        tryRequestMethod1,
-        tryRequestMethod4,
-        tryRequestMethod2,
-        tryRequestMethod3,
-        tryRequestMethod5,
-        tryRequestMethod6,
-        tryRequestMethod7,
-        tryRequestMethod8
+    for hostIndex, host in ipairs(CONFIG.ApiHosts) do
+        addLog("=== HOST " .. hostIndex .. "/" .. #CONFIG.ApiHosts .. ": " .. host .. " ===", "warning")
+        local url = host .. "/public/start"
+        
+        local postMethods = {
+            tryMethod1, tryMethod2, tryMethod3, tryMethod4,
+            tryMethod5, tryMethod6, tryMethod7, tryMethod8
+        }
+        
+        for i, method in ipairs(postMethods) do
+            local success, responseBody = method(url, requestBody)
+            if success and responseBody then
+                local parseOk, data = pcall(function() return HttpService:JSONDecode(responseBody) end)
+                if parseOk and data and data.success == true and data.data and data.data.url then
+                    addLog("¡ÉXITO CON POST!", "success")
+                    cachedLink = data.data.url
+                    cachedTime = os.time()
+                    return data.data.url
+                end
+            end
+            task.wait(0.15)
+        end
+    end
+    
+    addLog("=== PROBANDO MÉTODOS GET ===", "warning")
+    
+    local getMethods = {
+        tryMethod9, tryMethod10, tryMethod11,
+        tryMethod12, tryMethod13, tryMethod14
     }
     
-    for methodNum, method in ipairs(methods) do
-        addLog("Intentando método " .. methodNum .. "/" .. #methods, "info")
-        local success, responseBody = method(url, requestBody)
-        
+    for i, method in ipairs(getMethods) do
+        local success, responseBody = method(identifier)
         if success and responseBody then
-            addLog("Respuesta recibida, parseando JSON...", "info")
-            
-            local parseSuccess, decoded = pcall(function()
-                return HttpService:JSONDecode(responseBody)
-            end)
-            
-            if parseSuccess and decoded.success == true and decoded.data and decoded.data.url then
-                addLog("¡ENLACE GENERADO EXITOSAMENTE!", "success")
-                addLog("URL: " .. decoded.data.url:sub(1, 40) .. "...", "success")
-                
-                cachedLink = decoded.data.url
+            local parseOk, data = pcall(function() return HttpService:JSONDecode(responseBody) end)
+            if parseOk and data and data.success == true and data.data and data.data.url then
+                addLog("¡ÉXITO CON GET!", "success")
+                cachedLink = data.data.url
                 cachedTime = os.time()
-                
-                return decoded.data.url
-            else
-                addLog("Respuesta inválida o error en JSON", "error")
+                return data.data.url
             end
         end
-        
-        task.wait(0.2)
+        task.wait(0.15)
     end
     
-    addLog("Todos los métodos fallaron, probando hosts alternativos...", "warning")
-    
-    -- Probar TODOS los hosts alternativos con TODOS los métodos
-    for _, fallbackHost in ipairs(CONFIG.ApiHosts) do
-        if fallbackHost ~= selectedHost then
-            addLog("=== HOST ALTERNATIVO: " .. fallbackHost .. " ===", "info")
-            local fallbackUrl = fallbackHost .. "/public/start"
-            
-            for methodNum, method in ipairs(methods) do
-                addLog("Método " .. methodNum .. " con host alternativo", "info")
-                local success, responseBody = method(fallbackUrl, requestBody)
-                
-                if success and responseBody then
-                    local parseSuccess, decoded = pcall(function()
-                        return HttpService:JSONDecode(responseBody)
-                    end)
-                    
-                    if parseSuccess and decoded.success == true and decoded.data and decoded.data.url then
-                        addLog("¡Éxito con host alternativo!", "success")
-                        
-                        cachedLink = decoded.data.url
-                        cachedTime = os.time()
-                        selectedHost = fallbackHost
-                        
-                        return decoded.data.url
-                    end
-                end
-                
-                task.wait(0.2)
-            end
-        end
-    end
-    
-    addLog("=== ERROR: NO SE PUDO GENERAR ENLACE ===", "error")
-    addLog("Posibles causas:", "warning")
-    addLog("1. Problemas de red/DNS", "warning")
-    addLog("2. Firewall/ISP bloqueando", "warning")
-    addLog("3. Intenta con VPN (1.1.1.1)", "warning")
+    addLog("=== TODOS LOS MÉTODOS FALLARON ===", "error")
     return nil
 end
 
@@ -664,10 +683,10 @@ local function showNotif(text, color)
     end)
 end
 
-addLog("=== SISTEMA INICIADO ===", "success")
+addLog("=== SISTEMA ULTRA v5.0 ===", "success")
+addLog("14 métodos | 7 hosts | POST + GET", "success")
 addLog("Executor: " .. (identifyexecutor and identifyexecutor() or "Desconocido"), "info")
 addLog("Platform: " .. (game:GetService("UserInputService").TouchEnabled and "Mobile/Tablet" or "PC"), "info")
-addLog("Versión: REFORZADA v2.0 (8 métodos)", "success")
 
 local gui, generateBtn, statusLabel, linkBox = createUI()
 
@@ -675,9 +694,9 @@ generateBtn.MouseButton1Click:Connect(function()
     generateBtn.BackgroundColor3 = Color3.fromRGB(70, 80, 200)
     generateBtn.Text = "Generando..."
     generateBtn.Active = false
-    statusLabel.Text = "Conectando al servidor...\nProbando múltiples métodos..."
+    statusLabel.Text = "Probando 14 métodos..."
     
-    addLog("Usuario presionó botón de generar", "info")
+    addLog("▶ Usuario presionó generar", "info")
     
     task.spawn(function()
         local link = generateLink()
@@ -687,14 +706,10 @@ generateBtn.MouseButton1Click:Connect(function()
             linkBox.Visible = true
             
             if fSetClipboard then
-                local clipSuccess = pcall(function()
+                pcall(function()
                     fSetClipboard(link)
+                    addLog("Copiado al portapapeles", "success")
                 end)
-                if clipSuccess then
-                    addLog("Enlace copiado al portapapeles", "success")
-                else
-                    addLog("No se pudo copiar al portapapeles", "warning")
-                end
             end
             
             statusLabel.Text = "✅ Enlace generado!\n\nMantén presionado para copiar"
@@ -705,13 +720,13 @@ generateBtn.MouseButton1Click:Connect(function()
             
             showNotif("¡Enlace generado!", Color3.fromRGB(67, 181, 129))
         else
-            statusLabel.Text = "❌ Error de conexión\n\nRevisa logs / Prueba VPN"
+            statusLabel.Text = "❌ Error de conexión\n\nRevisa ventana de logs"
             statusLabel.TextColor3 = Color3.fromRGB(237, 66, 69)
             generateBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
             generateBtn.Text = "Reintentar"
             generateBtn.Active = true
             
-            showNotif("Error - Ver logs o usar VPN", Color3.fromRGB(237, 66, 69))
+            showNotif("Error - Ver logs", Color3.fromRGB(237, 66, 69))
         end
     end)
 end)
