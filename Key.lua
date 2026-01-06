@@ -5,7 +5,7 @@ local playerGui = player:WaitForChild("PlayerGui")
 
 local CONFIG = {
     ServiceId = 1951,
-    ProxyUrl = "https://jolly-bush-a809.armijosfeo.workers.dev/platoboost/start",
+    ProxyUrl = "https://jolly-bush-a809.armijosfeo.workers.dev",
     ApiHosts = {
         "https://api.platoboost.com",
         "https://api.platoboost.net",
@@ -71,7 +71,7 @@ local function makeProxyRequest(payload)
     if not requestFunction then return false, "No request function" end
     local success, result = pcall(function()
         return requestFunction({
-            Url = CONFIG.ProxyUrl,
+            Url = CONFIG.ProxyUrl .. "/platoboost/start",
             Method = "POST",
             Headers = {
                 ["Content-Type"] = "application/json",
@@ -133,6 +133,7 @@ end
 local function verifyKey(key)
     local identifier = getIdentifier()
     print("🔍 Verificando key...")
+    
     for hostIndex, host in ipairs(CONFIG.ApiHosts) do
         local url = string.format("%s/public/whitelist/%d?identifier=%s&key=%s",
             host,
@@ -159,6 +160,38 @@ local function verifyKey(key)
             task.wait(0.5)
         end
     end
+    
+    print("⚠️ Conexión directa falló, intentando proxy para verificar...")
+    local proxyPayload = HttpService:JSONEncode({
+        service = CONFIG.ServiceId,
+        identifier = identifier,
+        key = key
+    })
+    
+    local success, result = pcall(function()
+        return requestFunction({
+            Url = CONFIG.ProxyUrl .. "/platoboost/verify",
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json",
+                ["Accept"] = "application/json"
+            },
+            Body = proxyPayload,
+            Timeout = CONFIG.Timeout
+        })
+    end)
+    
+    if success and result and result.StatusCode == 200 and result.Body then
+        local parseOk, data = pcall(function()
+            return HttpService:JSONDecode(result.Body)
+        end)
+        if parseOk and data and data.success and data.data and data.data.valid == true then
+            print("✅ Key válida vía PROXY")
+            saveKey(key)
+            return true, "✅ Key válida"
+        end
+    end
+    
     print("❌ Key inválida o expirada")
     return false, "❌ Key inválida o expirada"
 end
@@ -498,3 +531,4 @@ end)
 print("🔑 Key System cargado")
 print("🌐 Proxy:", CONFIG.ProxyUrl)
 print("📱 Request function:", requestFunction and "✓" or "✗")
+print("🔐 Endpoints: /platoboost/start y /platoboost/verify")
