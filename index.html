@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🔍 Buscador Multi-Sitio</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#1a1a1a;min-height:100vh;padding:20px;}
+.container{max-width:1200px;margin:0 auto;background:#2a2a2a;border-radius:20px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,0.5);overflow:hidden;}
+.search-box{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
+.search-box input{flex:1;min-width:200px;padding:10px 12px;border:2px solid #e0e0e0;border-radius:8px;font-size:14px;}
+.search-box input:focus{outline:none;border-color:#667eea;}
+.search-box select{padding:10px 12px 10px 35px;border:2px solid #e0e0e0;border-radius:8px;font-size:14px;background:white;cursor:pointer;min-width:120px;max-width:140px;background-repeat:no-repeat;background-position:8px center;background-size:18px 18px;}
+.search-box select:focus{outline:none;border-color:#667eea;}
+.search-box button{padding:10px 20px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:transform 0.2s;white-space:nowrap;}
+.search-box button:hover{transform:translateY(-2px);}
+.search-box button:disabled{opacity:0.6;cursor:not-allowed;}
+.status{text-align:center;color:#eee;margin-bottom:20px;font-size:14px;}
+.results{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:20px;}
+.item{background:white;border-radius:10px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.1);transition:transform 0.2s,border 0.2s;cursor:pointer;display:flex;flex-direction:column;position:relative;border:3px solid transparent;}
+.item:hover{transform:translateY(-5px);box-shadow:0 8px 20px rgba(0,0,0,0.2);}
+.item.selected{border-color:#ffa726;box-shadow:0 0 0 3px rgba(255,167,38,0.3);}
+.item img{width:100%;height:auto;min-height:200px;max-height:400px;object-fit:contain;background:#f0f0f0;display:block;}
+.item-checkbox{position:absolute;top:8px;right:8px;width:24px;height:24px;cursor:pointer;z-index:10;accent-color:#ffa726;display:none;}
+.selection-mode .item-checkbox{display:block;}
+.item-name{padding:10px;font-size:12px;font-weight:600;color:#333;word-wrap:break-word;text-align:center;min-height:60px;display:flex;align-items:center;justify-content:center;}
+.item-id{font-size:10px;color:#999;margin-top:3px;}
+.error{background:#ffebee;border:2px solid #ef5350;border-radius:10px;padding:15px;color:#c62828;margin-bottom:20px;display:none;}
+.success{background:#e8f5e9;border:2px solid #66bb6a;border-radius:10px;padding:15px;color:#2e7d32;margin-bottom:20px;display:none;}
+.pagination{display:flex;gap:8px;justify-content:center;align-items:center;margin-top:30px;flex-wrap:wrap;}
+.pagination button{padding:10px 16px;background:white;border:2px solid #667eea;color:#667eea;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;min-width:45px;}
+.pagination button:hover{background:#667eea;color:white;transform:translateY(-2px);}
+.pagination button:disabled{opacity:0.5;cursor:not-allowed;transform:none;}
+.pagination button.active{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;border-color:#764ba2;}
+.viewer{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.95);z-index:1000;overflow-y:auto;padding:20px;}
+.viewer.active{display:block;}
+.viewer-header{position:sticky;top:0;background:rgba(0,0,0,0.9);padding:15px;display:flex;justify-content:space-between;align-items:center;z-index:10;}
+.viewer-title{color:white;font-size:18px;font-weight:600;}
+.viewer-close{background:#ef5350;color:white;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-weight:600;}
+.viewer-close:hover{background:#e53935;}
+.viewer-content{max-width:800px;margin:0 auto;padding:20px 0;}
+.viewer-content img{width:100%;margin-bottom:10px;border-radius:8px;}
+</style>
+</head>
+<body>
+<div class="container">
+<h2 style="color:#667eea;margin-bottom:15px;text-align:center;font-size:22px;">🔍 Buscador Multi-Sitio</h2>
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;flex-wrap:wrap;gap:10px;">
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;color:#eee;">
+<input type="checkbox" id="selectionMode" onchange="toggleSelectionMode()" style="width:16px;height:16px;cursor:pointer;accent-color:#ffa726;">
+<span>✅ Modo Selección</span>
+</label>
+<button onclick="copySelectedUrls()" id="copySelectedBtn" style="display:none;padding:6px 12px;background:#ffa726;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">📋 Copiar URLs</button>
+<button onclick="downloadSelected()" id="downloadSelectedBtn" style="display:none;padding:6px 12px;background:#28a745;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">💾 Descargar JSON</button>
+<button onclick="saveToGitHub()" id="saveGitHubBtn" style="display:none;padding:6px 12px;background:#667eea;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">📚 Guardar en GitHub</button>
+</div>
+</div>
+
+<div class="search-box">
+<input type="text" id="searchInput" placeholder="Escribe para buscar... 🔎" value="lisa">
+<select id="siteSelector" onchange="onSiteChange()">
+<option value="0">3Hentai</option>
+<option value="1">ReyComix</option>
+<option value="2">MelaPeloConDibujos</option>
+</select>
+<button onclick="search(1)" id="searchBtn">🔍 Buscar</button>
+</div>
+<div class="error" id="error"></div>
+<div class="success" id="success"></div>
+<div class="status" id="status"></div>
+<div class="results" id="results"></div>
+<div class="pagination" id="pagination"></div>
+</div>
+
+<div class="viewer" id="viewer">
+<div class="viewer-header">
+<div class="viewer-title" id="viewerTitle">Cargando...</div>
+<button class="viewer-close" onclick="closeViewer()">✖ Cerrar</button>
+</div>
+<div class="viewer-content" id="viewerContent"></div>
+</div>
+
+<script>
+// 🔐 Variable inyectada por GitHub Actions
+const ALMACEN_KEY = '__ALMACEN_KEY__';  // Será reemplazada automáticamente
+
+const PROXY_URL='https://api.allorigins.win/raw?url=';
+const GITHUB_REPO='josemvargas24/comicbook';
+const GITHUB_FILE_PATH='data/biblioteca.json';
+const RAW_GITHUB_URL='https://raw.githubusercontent.com/josemvargas24/comicbook/refs/heads/main/data/biblioteca.json';
+
+const SITES=[
+  {
+    name:'3Hentai',
+    icon:'https://es.3hentai.net/favicon.ico',
+    baseUrl:'https://es.3hentai.net',
+    searchUrl:(query,page)=>`https://es.3hentai.net/search?q=${encodeURIComponent(query)}${page>1?'&page='+page:''}`,
+    selectors:{
+      items:'a[href*="/d/"]',
+      image:'img',
+      pagination:'.pagination a, .page-link, a[href*="page="]',
+      title:null
+    },
+    getImageUrl:(img)=>{
+      if(!img)return null;
+      return img.src||img.dataset.src||img.getAttribute('data-src')||img.getAttribute('data-lazy-src');
+    },
+    getTitle:async(element,index)=>{
+      const img=element.querySelector('img');
+      if(img&&img.alt&&img.alt.trim()&&!img.alt.match(/^\d+$/))return img.alt.trim();
+      if(img&&img.title&&img.title.trim()&&!img.title.match(/^\d+$/))return img.title.trim();
+      const href=element.href||element.getAttribute('href')||'';
+      const itemUrl=href.startsWith('http')?href:'https://es.3hentai.net'+href;
+      try{
+        const response=await fetch(PROXY_URL+encodeURIComponent(itemUrl));
+        if(response.ok){
+          const html=await response.text();
+          const parser=new DOMParser();
+          const doc=parser.parseFromString(html,'text/html');
+          const titleSelectors=['h1','h2','.title','#title','.comic-title'];
+          for(const selector of titleSelectors){
+            const titleEl=doc.querySelector(selector);
+            if(titleEl&&titleEl.textContent.trim()){
+              return titleEl.textContent.trim();
+            }
+          }
+        }
+      }catch(e){
+        console.error('Error obteniendo título:',e);
+      }
+      const match=href.match(/\/d\/(\d+)/);
+      return match?`ID: ${match[1]}`:`Imagen ${index+1}`;
+    },
+    getItemUrl:(element)=>{
+      const href=element.href||element.getAttribute('href')||'';
+      return href.startsWith('http')?href:'https://es.3hentai.net'+href;
+    },
+    getPages:async(itemUrl)=>{
+      try{
+        const response=await fetch(PROXY_URL+encodeURIComponent(itemUrl));
+        if(!response.ok)return{maxPage:0,images:[]};
+        const html=await response.text();
+        const parser=new DOMParser();
+        const doc=parser.parseFromString(html,'text/html');
+        let maxPage=0;
+        const allLinks=doc.querySelectorAll('a');
+        allLinks.forEach(link=>{
+          const href=link.href||link.getAttribute('href')||'';
+          const match=href.match(/\/d\/\d+\/(\d+)/);
+          if(match){
+            const pageNum=parseInt(match[1]);
+            if(pageNum>maxPage)maxPage=pageNum;
+          }
+        });
+        const firstPageUrl=`${itemUrl}/1`;
+        const pageResponse=await fetch(PROXY_URL+encodeURIComponent(firstPageUrl));
+        if(!pageResponse.ok)return{maxPage:0,images:[]};
+        const pageHtml=await pageResponse.text();
+        const pageDoc=parser.parseFromString(pageHtml,'text/html');
+        let firstImageUrl=null;
+        const mainImage=pageDoc.querySelector('#image, .reader-image, img.current-img, #img, .main-image');
+        if(mainImage){
+          firstImageUrl=mainImage.src||mainImage.dataset.src||mainImage.getAttribute('data-src');
+        }
+        if(!firstImageUrl){
+          const allImages=pageDoc.querySelectorAll('img');
+          for(const img of allImages){
+            const src=img.src||img.dataset.src||img.getAttribute('data-src');
+            if(src&&(src.includes('.jpg')||src.includes('.png')||src.includes('.webp')||src.includes('.jpeg'))){
+              if(img.naturalWidth>300||img.width>300||src.includes('/d/')||src.includes('hentai')){
+                firstImageUrl=src;
+                break;
+              }
+            }
+          }
+        }
+        if(!firstImageUrl)return{maxPage:0,images:[]};
+        const pattern=/^(https:\/\/s\d+\.3hentai\.xyz\/d\d+\/)(\d+)(\.\w+)$/;
+        const match=firstImageUrl.match(pattern);
+        if(!match)return{maxPage:maxPage,images:[firstImageUrl]};
+        const baseUrl=match[1];
+        const extension=match[3];
+        const images=[];
+        for(let i=1;i<=maxPage;i++){
+          images.push(`${baseUrl}${i}${extension}`);
+        }
+        return{maxPage:maxPage,images:images};
+      }catch(error){
+        console.error('Error en getPages:',error);
+        return{maxPage:0,images:[]};
+      }
+    }
+  },
+  {
+    name:'ReyComix',
+    icon:'https://reycomix.com/favicon.ico',
+    baseUrl:'https://reycomix.com',
+    searchUrl:(query,page)=>`https://reycomix.com/page/${page}/?s=${encodeURIComponent(query)}`,
+    selectors:{
+      items:'a[href*="reycomix.com"][href*="/20"]',
+      image:'img',
+      pagination:'a.page-numbers, .pagination a',
+      title:null
+    },
+    getImageUrl:(img)=>{
+      if(!img)return null;
+      return img.src||img.dataset.src||img.getAttribute('data-src');
+    },
+    getTitle:async(element,index)=>{
+      const img=element.querySelector('img');
+      if(img&&img.alt&&img.alt.trim())return img.alt.trim();
+      if(img&&img.title&&img.title.trim())return img.title.trim();
+      const href=element.href||element.getAttribute('href')||'';
+      const itemUrl=href.startsWith('http')?href:'https://reycomix.com'+href;
+      try{
+        const response=await fetch(PROXY_URL+encodeURIComponent(itemUrl));
+        if(response.ok){
+          const html=await response.text();
+          const parser=new DOMParser();
+          const doc=parser.parseFromString(html,'text/html');
+          const h1=doc.querySelector('h1');
+          if(h1&&h1.textContent.trim()){
+            return h1.textContent.trim();
+          }
+        }
+      }catch(e){
+        console.error('Error obteniendo título:',e);
+      }
+      return `Cómic ${index+1}`;
+    },
+    getItemUrl:(element)=>{
+      const href=element.href||element.getAttribute('href')||'';
+      return href.startsWith('http')?href:'https://reycomix.com'+href;
+    },
+    getPages:async(itemUrl)=>{
+      try{
+        const response=await fetch(PROXY_URL+encodeURIComponent(itemUrl));
+        if(!response.ok)return{maxPage:0,images:[]};
+        const html=await response.text();
+        const parser=new DOMParser();
+        const doc=parser.parseFromString(html,'text/html');
+        const images=[];
+        const imgElements=doc.querySelectorAll('article img, .entry-content img, img[src*="reycomix"]');
+        imgElements.forEach(img=>{
+          let src=img.src||img.dataset.src||img.getAttribute('data-src');
+          if(src&&!src.includes('icon')&&!src.includes('logo')&&!src.includes('banner')){
+            images.push(src);
+          }
+        });
+        return{maxPage:images.length,images:images};
+      }catch(error){
+        console.error('Error en getPages:',error);
+        return{maxPage:0,images:[]};
+      }
+    }
+  },
+  {
+    name:'MelaPeloConDibujos',
+    icon:'https://melapelocondibujos.com/favicon.ico',
+    baseUrl:'https://melapelocondibujos.com',
+    searchUrl:(query,page)=>`https://melapelocondibujos.com/page/${page}/?s=${encodeURIComponent(query)}`,
+    selectors:{
+      items:'a[href*="melapelocondibujos.com"][href*="/20"]',
+      image:'img',
+      pagination:'a.page-numbers, .pagination a',
+      title:null
+    },
+    getImageUrl:(img)=>{
+      if(!img)return null;
+      return img.src||img.dataset.src||img.getAttribute('data-src');
+    },
+    getTitle:async(element,index)=>{
+      const img=element.querySelector('img');
+      if(img&&img.alt&&img.alt.trim())return img.alt.trim();
+      if(img&&img.title&&img.title.trim())return img.title.trim();
+      const href=element.href||element.getAttribute('href')||'';
+      const itemUrl=href.startsWith('http')?href:'https://melapelocondibujos.com'+href;
+      try{
+        const response=await fetch(PROXY_URL+encodeURIComponent(itemUrl));
+        if(response.ok){
+          const html=await response.text();
+          const parser=new DOMParser();
+          const doc=parser.parseFromString(html,'text/html');
+          const h1=doc.querySelector('h1');
+          if(h1&&h1.textContent.trim()){
+            return h1.textContent.trim();
+          }
+        }
+      }catch(e){
+        console.error('Error obteniendo título:',e);
+      }
+      return `Cómic ${index+1}`;
+    },
+    getItemUrl:(element)=>{
+      const href=element.href||element.getAttribute('href')||'';
+      return href.startsWith('http')?href:'https://melapelocondibujos.com'+href;
+    },
+    getPages:async(itemUrl)=>{
+      try{
+        const response=await fetch(PROXY_URL+encodeURIComponent(itemUrl));
+        if(!response.ok)return{maxPage:0,images:[]};
+        const html=await response.text();
+        const parser=new DOMParser();
+        const doc=parser.parseFromString(html,'text/html');
+        const images=[];
+        const imgElements=doc.querySelectorAll('article img, .entry-content img, img[src*="melapelocondibujos"]');
+        imgElements.forEach(img=>{
+          let src=img.src||img.dataset.src||img.getAttribute('data-src');
+          if(src&&!src.includes('icon')&&!src.includes('logo')&&!src.includes('banner')){
+            images.push(src);
+          }
+        });
+        return{maxPage:images.length,images:images};
+      }catch(error){
+        console.error('Error en getPages:',error);
+        return{maxPage:0,images:[]};
+      }
+    }
+  }
+];
+
+let currentSite=SITES[0];
+let currentResults=[];
+let currentPage=1;
+let totalPages=1;
+let selectedItems=new Set();
+let dataCache=new Map();
+
+function onSiteChange(){
+  const siteIndex=document.getElementById('siteSelector').value;
+  currentSite=SITES[siteIndex];
+  document.getElementById('siteSelector').style.backgroundImage=`url('${PROXY_URL}${encodeURIComponent(currentSite.icon)}')`;
+  selectedItems.clear();
+  dataCache.clear();
+  document.getElementById('results').innerHTML='';
+  document.getElementById('pagination').innerHTML='';
+  updateCopyButton();
+}
+
+async function search(page=1){
+  currentPage=page;
+  const query=document.getElementById('searchInput').value.trim();
+  if(!query){
+    showError('❌ Escribe algo para buscar');
+    return;
+  }
+  const searchBtn=document.getElementById('searchBtn');
+  const status=document.getElementById('status');
+  const results=document.getElementById('results');
+  const pagination=document.getElementById('pagination');
+  hideMessages();
+  searchBtn.disabled=true;
+  searchBtn.textContent='🔄 Buscando...';
+  status.textContent=`Buscando "${query}" en ${currentSite.name}...`;
+  results.innerHTML='';
+  pagination.innerHTML='';
+  try{
+    const searchUrl=currentSite.searchUrl(query,page);
+    const response=await fetch(PROXY_URL+encodeURIComponent(searchUrl));
+    if(!response.ok)throw new Error('Error al buscar');
+    const html=await response.text();
+    const parser=new DOMParser();
+    const doc=parser.parseFromString(html,'text/html');
+    const items=doc.querySelectorAll(currentSite.selectors.items);
+    if(items.length===0){
+      status.textContent='❌ No se encontraron resultados';
+      return;
+    }
+    const uniqueItems=new Map();
+    items.forEach(item=>{
+      const url=currentSite.getItemUrl(item);
+      if(!uniqueItems.has(url)){
+        uniqueItems.set(url,item);
+      }
+    });
+    currentResults=Array.from(uniqueItems.values());
+    status.textContent=`✅ ${currentResults.length} resultados encontrados`;
+    const paginationLinks=doc.querySelectorAll(currentSite.selectors.pagination);
+    const pageNumbers=new Set();
+    paginationLinks.forEach(link=>{
+      const href=link.href||link.getAttribute('href')||'';
+      const pageMatch=href.match(/page[=\/](\d+)/i);
+      if(pageMatch){
+        pageNumbers.add(parseInt(pageMatch[1]));
+      }
+    });
+    totalPages=pageNumbers.size>0?Math.max(...pageNumbers):1;
+    if(totalPages>1){
+      renderPagination(page,totalPages);
+    }
+    for(let i=0;i<currentResults.length;i++){
+      const item=currentResults[i];
+      const img=item.querySelector(currentSite.selectors.image);
+      const imageUrl=currentSite.getImageUrl(img);
+      let title=await currentSite.getTitle(item,i);
+      const itemUrl=currentSite.getItemUrl(item);
+      const div=document.createElement('div');
+      div.className='item';
+      div.innerHTML=`
+        <input type="checkbox" class="item-checkbox" onclick="toggleItem(event, '${itemUrl}')">
+        <img src="${PROXY_URL}${encodeURIComponent(imageUrl)}" alt="${title}" loading="lazy">
+        <div class="item-name">${title}</div>
+      `;
+      div.onclick=(e)=>{
+        if(e.target.type!=='checkbox'){
+          openViewer(itemUrl);
+        }
+      };
+      results.appendChild(div);
+    }
+  }catch(error){
+    console.error('Error:',error);
+    status.textContent='';
+    showError('❌ Error al buscar. Intenta de nuevo.');
+  }finally{
+    searchBtn.disabled=false;
+    searchBtn.textContent='🔍 Buscar';
+  }
+}
+
+function renderPagination(current,total){
+  const pagination=document.getElementById('pagination');
+  pagination.innerHTML='';
+  const maxButtons=5;
+  let startPage=Math.max(1,current-Math.floor(maxButtons/2));
+  let endPage=Math.min(total,startPage+maxButtons-1);
+  if(endPage-startPage+1<maxButtons){
+    startPage=Math.max(1,endPage-maxButtons+1);
+  }
+  if(current>1){
+    const prevBtn=document.createElement('button');
+    prevBtn.textContent='⬅ Anterior';
+    prevBtn.onclick=()=>search(current-1);
+    pagination.appendChild(prevBtn);
+  }
+  if(startPage>1){
+    const firstBtn=document.createElement('button');
+    firstBtn.textContent='1';
+    firstBtn.onclick=()=>search(1);
+    pagination.appendChild(firstBtn);
+    if(startPage>2){
+      const dots=document.createElement('button');
+      dots.textContent='...';
+      dots.disabled=true;
+      pagination.appendChild(dots);
+    }
+  }
+  for(let i=startPage;i<=endPage;i++){
+    const btn=document.createElement('button');
+    btn.textContent=i;
+    btn.onclick=()=>search(i);
+    if(i===current){
+      btn.className='active';
+    }
+    pagination.appendChild(btn);
+  }
+  if(endPage<total){
+    if(endPage<total-1){
+      const dots=document.createElement('button');
+      dots.textContent='...';
+      dots.disabled=true;
+      pagination.appendChild(dots);
+    }
+    const lastBtn=document.createElement('button');
+    lastBtn.textContent=total;
+    lastBtn.onclick=()=>search(total);
+    pagination.appendChild(lastBtn);
+  }
+  if(current<total){
+    const nextBtn=document.createElement('button');
+    nextBtn.textContent='Siguiente ➡';
+    nextBtn.onclick=()=>search(current+1);
+    pagination.appendChild(nextBtn);
+  }
+}
+
+async function openViewer(itemUrl){
+  const viewer=document.getElementById('viewer');
+  const viewerTitle=document.getElementById('viewerTitle');
+  const viewerContent=document.getElementById('viewerContent');
+  viewer.classList.add('active');
+  viewerTitle.textContent='Cargando...';
+  viewerContent.innerHTML='<p style="color:white;text-align:center;padding:40px;">🔄 Cargando páginas...</p>';
+  try{
+    const data=await currentSite.getPages(itemUrl);
+    viewerTitle.textContent=`${currentSite.name} - ${data.maxPage||data.images.length} páginas`;
+    viewerContent.innerHTML='';
+    if(data.images&&data.images.length>0){
+      data.images.forEach((imgUrl,index)=>{
+        const img=document.createElement('img');
+        img.src=PROXY_URL+encodeURIComponent(imgUrl);
+        img.alt=`Página ${index+1}`;
+        img.loading='lazy';
+        viewerContent.appendChild(img);
+      });
+    }else{
+      viewerContent.innerHTML='<p style="color:white;text-align:center;padding:40px;">❌ No se encontraron imágenes</p>';
+    }
+  }catch(error){
+    console.error('Error al cargar páginas:',error);
+    viewerContent.innerHTML='<p style="color:white;text-align:center;padding:40px;">❌ Error al cargar las páginas</p>';
+  }
+}
+
+function closeViewer(){
+  document.getElementById('viewer').classList.remove('active');
+}
+
+function toggleSelectionMode(){
+  const isActive=document.getElementById('selectionMode').checked;
+  const container=document.querySelector('.container');
+  const copyBtn=document.getElementById('copySelectedBtn');
+  const downloadBtn=document.getElementById('downloadSelectedBtn');
+  const saveBtn=document.getElementById('saveGitHubBtn');
+  if(isActive){
+    container.classList.add('selection-mode');
+    copyBtn.style.display='inline-block';
+    downloadBtn.style.display='inline-block';
+    saveBtn.style.display='inline-block';
+  }else{
+    container.classList.remove('selection-mode');
+    copyBtn.style.display='none';
+    downloadBtn.style.display='none';
+    saveBtn.style.display='none';
+    selectedItems.clear();
+    document.querySelectorAll('.item').forEach(item=>{
+      item.classList.remove('selected');
+      const checkbox=item.querySelector('.item-checkbox');
+      if(checkbox)checkbox.checked=false;
+    });
+  }
+  updateCopyButton();
+}
+
+function toggleItem(event,itemUrl){
+  event.stopPropagation();
+  const checkbox=event.target;
+  const item=checkbox.closest('.item');
+  if(checkbox.checked){
+    selectedItems.add(itemUrl);
+    item.classList.add('selected');
+  }else{
+    selectedItems.delete(itemUrl);
+    item.classList.remove('selected');
+  }
+  updateCopyButton();
+}
+
+function updateCopyButton(){
+  const copyBtn=document.getElementById('copySelectedBtn');
+  const downloadBtn=document.getElementById('downloadSelectedBtn');
+  const saveBtn=document.getElementById('saveGitHubBtn');
+  const count=selectedItems.size;
+  if(count>0){
+    copyBtn.textContent=`📋 Copiar URLs (${count})`;
+    downloadBtn.textContent=`💾 Descargar JSON (${count})`;
+    saveBtn.textContent=`📚 Guardar en GitHub (${count})`;
+  }else{
+    copyBtn.textContent='📋 Copiar URLs';
+    downloadBtn.textContent='💾 Descargar JSON';
+    saveBtn.textContent='📚 Guardar en GitHub';
+  }
+}
+
+function copySelectedUrls(){
+  if(selectedItems.size===0){
+    showError('❌ No hay items seleccionados');
+    return;
+  }
+  const urls=Array.from(selectedItems).join('\n');
+  navigator.clipboard.writeText(urls).then(()=>{
+    showSuccess(`✅ ${selectedItems.size} URLs copiadas al portapapeles`);
+  }).catch(()=>{
+    showError('❌ Error al copiar');
+  });
+}
+
+async function downloadSelected(){
+  if(selectedItems.size===0){
+    showError('❌ No hay items seleccionados');
+    return;
+  }
+  const downloadBtn=document.getElementById('downloadSelectedBtn');
+  const originalText=downloadBtn.textContent;
+  downloadBtn.disabled=true;
+  downloadBtn.textContent='🔄 Extrayendo...';
+  const items=[];
+  for(const itemUrl of selectedItems){
+    showSuccess(`🔄 Extrayendo datos... (${items.length+1}/${selectedItems.size})`);
+    const data=await getItemData(itemUrl);
+    items.push({
+      url:itemUrl,
+      title:data.title,
+      pages:data.images,
+      cover:data.images[0]||'',
+      site:currentSite.name
+    });
+  }
+  downloadBtn.disabled=false;
+  downloadBtn.textContent=originalText;
+  const exportData={
+    version:'1.0',
+    exportDate:new Date().toISOString(),
+    site:currentSite.name,
+    comics:items
+  };
+  const text=JSON.stringify(exportData,null,2);
+  const blob=new Blob([text],{type:'application/json'});
+  const link=document.createElement('a');
+  link.href=URL.createObjectURL(blob);
+  link.download=`${currentSite.name.toLowerCase()}_${new Date().toISOString().split('T')[0]}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
+  showSuccess(`✅ ${items.length} items descargados`);
+}
+
+async function getItemData(itemUrl){
+  if(dataCache.has(itemUrl))return dataCache.get(itemUrl);
+  const data=await currentSite.getPages(itemUrl);
+  let title='Item';
+  try{
+    const response=await fetch(PROXY_URL+encodeURIComponent(itemUrl));
+    if(response.ok){
+      const html=await response.text();
+      const parser=new DOMParser();
+      const doc=parser.parseFromString(html,'text/html');
+      const h1=doc.querySelector('h1');
+      const pageTitle=doc.querySelector('title');
+      if(h1&&h1.textContent.trim()){
+        title=h1.textContent.trim();
+      }else if(pageTitle&&pageTitle.textContent.trim()){
+        title=pageTitle.textContent.trim().split('|')[0].split('-')[0].trim();
+      }
+    }
+  }catch(e){
+    console.log('Error extrayendo título, usando fallback');
+  }
+  if(title==='Item'){
+    if(currentSite.name==='3Hentai'){
+      const match=itemUrl.match(/\/d\/(\d+)/);
+      title=match?match[1]:'Manga';
+    }else if(currentSite.name==='ReyComix'){
+      const match=itemUrl.match(/reycomix\.com\/([^\/]+)/);
+      title=match?decodeURIComponent(match[1]).replace(/-/g,' '):'Cómic';
+    }else if(currentSite.name==='MelaPeloConDibujos'){
+      const match=itemUrl.match(/melapelocondibujos\.com\/([^\/]+)/);
+      title=match?decodeURIComponent(match[1]).replace(/-/g,' '):'Cómic';
+    }
+  }
+  const result={title,images:data.images||[]};
+  dataCache.set(itemUrl,result);
+  return result;
+}
+
+async function saveToGitHub(){
+  if(selectedItems.size===0){
+    showError('❌ No hay items seleccionados');
+    return;
+  }
+  if(selectedItems.size>1){
+    showError('⚠️ Solo puedes guardar 1 cómic a la vez en GitHub');
+    return;
+  }
+  const saveBtn=document.getElementById('saveGitHubBtn');
+  const originalText=saveBtn.textContent;
+  saveBtn.disabled=true;
+  saveBtn.textContent='🔄 Guardando...';
+  try{
+    showSuccess('🔄 Extrayendo datos del cómic...');
+    const itemUrl=Array.from(selectedItems)[0];
+    const data=await getItemData(itemUrl);
+    if(!data||!data.images||data.images.length===0){
+      throw new Error('No se pudieron extraer las imágenes');
+    }
+    showSuccess('📚 Cargando biblioteca desde GitHub (RAW)...');
+    const response=await fetch(RAW_GITHUB_URL,{
+      method:'GET',
+      cache:'no-cache',
+      headers:{'Accept':'application/json'}
+    });
+    let allComics=[];
+    let nextId=1;
+    if(response.ok){
+      const githubData=await response.json();
+      allComics=githubData.comics||[];
+      if(allComics.length>0){
+        const maxId=Math.max(...allComics.map(c=>c.id||0));
+        nextId=maxId+1;
+      }
+    }
+    const newComic={
+      title:data.title,
+      pages:data.images,
+      cover:data.images[0]||'',
+      date:new Date().toISOString(),
+      id:nextId
+    };
+    allComics.push(newComic);
+    showSuccess('💾 Sincronizando con GitHub...');
+    const exportData={
+      version:'1.0',
+      exportDate:new Date().toISOString(),
+      comics:allComics
+    };
+    const content=JSON.stringify(exportData,null,2);
+    const encoded=btoa(unescape(encodeURIComponent(content)));
+    const getResponse=await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`,{
+      headers:{
+        'Authorization':`token ${ALMACEN_KEY}`,
+        'Accept':'application/vnd.github.v3+json'
+      }
+    });
+    let sha=null;
+    if(getResponse.ok){
+      const fileData=await getResponse.json();
+      sha=fileData.sha;
+    }
+    const updateResponse=await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`,{
+      method:'PUT',
+      headers:{
+        'Authorization':`token ${ALMACEN_KEY}`,
+        'Accept':'application/vnd.github.v3+json',
+        'Content-Type':'application/json'
+      },
+      body:JSON.stringify({
+        message:`Nuevo cómic: ${newComic.title}`,
+        content:encoded,
+        sha:sha
+      })
+    });
+    if(!updateResponse.ok){
+      throw new Error('Error al sincronizar con GitHub');
+    }
+    showSuccess(`✅ "${newComic.title}" guardado en GitHub con ${newComic.pages.length} páginas`);
+    selectedItems.clear();
+    dataCache.clear();
+    document.querySelectorAll('.item').forEach(item=>{
+      item.classList.remove('selected');
+      const checkbox=item.querySelector('.item-checkbox');
+      if(checkbox)checkbox.checked=false;
+    });
+    updateCopyButton();
+  }catch(error){
+    console.error('Error al guardar en GitHub:',error);
+    showError('❌ Error al guardar: '+error.message);
+  }finally{
+    saveBtn.disabled=false;
+    saveBtn.textContent=originalText;
+  }
+}
+
+function showError(msg){
+  const errorDiv=document.getElementById('error');
+  errorDiv.textContent=msg;
+  errorDiv.style.display='block';
+  setTimeout(()=>errorDiv.style.display='none',3000);
+}
+
+function showSuccess(msg){
+  const successDiv=document.getElementById('success');
+  successDiv.textContent=msg;
+  successDiv.style.display='block';
+  setTimeout(()=>successDiv.style.display='none',2000);
+}
+
+function hideMessages(){
+  document.getElementById('error').style.display='none';
+  document.getElementById('success').style.display='none';
+}
+
+document.getElementById('searchInput').addEventListener('keypress',(e)=>{
+  if(e.key==='Enter')search(1);
+});
+
+document.getElementById('siteSelector').style.backgroundImage=`url('${PROXY_URL}${encodeURIComponent(SITES[0].icon)}')`;
+
+search(1);
+</script>
+</body>
+</html>
