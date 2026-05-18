@@ -22,8 +22,16 @@ export default async function handler(req, res) {
   const data = await response.json();
   const pagadas = data.data.filter((o) => o.attributes.status === "paid");
 
+  if (pagadas.length === 0) {
+    return res.status(200).json({
+      verified: false,
+      mensaje: "Este email no tiene compras registradas"
+    });
+  }
+
   return res.status(200).json({
-    verified: pagadas.length > 0,
+    verified: true,
+    mensaje: "Compra verificada!",
     ordenes: pagadas.map((o) => ({
       id: o.id,
       producto: o.attributes.first_order_item?.product_name,
