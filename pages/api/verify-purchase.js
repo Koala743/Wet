@@ -10,7 +10,7 @@ export default async function handler(req, res) {
   }
 
   const response = await fetch(
-    `https://api.lemonsqueezy.com/v1/orders?filter[store_id]=${process.env.LEMONSQUEEZY_STORE_ID}&filter[user_email]=${email}`,
+    `https://api.lemonsqueezy.com/v1/orders?filter[store_id]=361536&filter[user_email]=${email}`,
     {
       headers: {
         Authorization: `Bearer ${process.env.LEMONSQUEEZY_API_KEY}`,
