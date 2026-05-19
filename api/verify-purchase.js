@@ -1,12 +1,19 @@
 module.exports = async (req, res) => {
-  if (req.method !== "GET") {
-    return res.status(405).json({ error: "Method not allowed" });
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   const { email } = req.query;
 
   if (!email) {
-    return res.status(400).json({ error: "Se requiere email" });
+    return res.status(400).json({ error: 'Se requiere email' });
   }
 
   const response = await fetch(
@@ -14,24 +21,24 @@ module.exports = async (req, res) => {
     {
       headers: {
         Authorization: `Bearer ${process.env.LEMONSQUEEZY_API_KEY}`,
-        Accept: "application/vnd.api+json",
+        Accept: 'application/vnd.api+json',
       },
     }
   );
 
   const data = await response.json();
-  const pagadas = data.data.filter((o) => o.attributes.status === "paid");
+  const pagadas = data.data.filter((o) => o.attributes.status === 'paid');
 
   if (pagadas.length === 0) {
     return res.status(200).json({
       verified: false,
-      mensaje: "Este email no tiene compras registradas"
+      mensaje: 'Este email no tiene compras registradas'
     });
   }
 
   return res.status(200).json({
     verified: true,
-    mensaje: "Compra verificada!",
+    mensaje: 'Compra verificada!',
     ordenes: pagadas.map((o) => ({
       id: o.id,
       producto: o.attributes.first_order_item?.product_name,
